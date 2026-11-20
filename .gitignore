@@ -1,0 +1,22 @@
+# Local data, solver environments, source checkouts and weights
+/.deps/
+/.venv/
+/review-checkpoints/
+*.parquet
+*.pth
+*.pt
+*.ckpt
+
+# Fresh runs live here. The portable, verified sample is under examples/.
+/acceptance/
+/formal/
+/repeat/
+/outputs/
+*.log
+
+# Machine-local configuration and Python build artifacts
+.env
+*.lic
+gurobi.env
+__pycache__/
+*.py[cod]

@@ -1,0 +1,25 @@
+{
+  "expected": {
+    "origin": 0,
+    "station": 101,
+    "distance_m": 11643.2877586394,
+    "effective_kw": 90.0,
+    "arrival_kwh": 95.46953783710529,
+    "energy_kwh": 4.530462162894709,
+    "departure_kwh": 100,
+    "charge_s": 181.2184865157883
+  },
+  "adapter": {
+    "energy_kwh": 4.5304621628947075,
+    "charge_s": 181.2184865157883,
+    "departure_kwh": 100.0,
+    "outbound_terminal": 1,
+    "evaluated_rows": "active Gurobi battery and charging constraints"
+  },
+  "checks": {
+    "energy_kwh": true,
+    "charge_s": true,
+    "departure_kwh": true
+  },
+  "valid": true
+}

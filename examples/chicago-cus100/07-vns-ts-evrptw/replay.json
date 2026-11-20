@@ -1,0 +1,1027 @@
+{
+  "valid": true,
+  "distance_m": 43918.703345030546,
+  "vehicles": 1,
+  "charging_visits": 0,
+  "customers": 100,
+  "routes": [
+    {
+      "route": 1,
+      "load_cm3": 1279343.714,
+      "meters": 43918.703345030546,
+      "return_s": 46276.72052680121,
+      "legs": [
+        {
+          "origin": 0,
+          "destination": 25,
+          "meters": 13267.849063991152,
+          "arrival_s": 30847.06037673848,
+          "service_start_s": 30847.06037673848,
+          "departure_s": 30904.06037673848,
+          "arrival_kwh": 94.83741281556765,
+          "departure_kwh": 94.83741281556765
+        },
+        {
+          "origin": 25,
+          "destination": 20,
+          "meters": 58.23880333881411,
+          "arrival_s": 30913.954223682747,
+          "service_start_s": 30913.954223682747,
+          "departure_s": 31074.207091982455,
+          "arrival_kwh": 94.81475180259534,
+          "departure_kwh": 94.81475180259534
+        },
+        {
+          "origin": 20,
+          "destination": 37,
+          "meters": 59.29942481940854,
+          "arrival_s": 31084.28112165702,
+          "service_start_s": 32400.0,
+          "departure_s": 32471.0,
+          "arrival_kwh": 94.79167809643992,
+          "departure_kwh": 94.79167809643992
+        },
+        {
+          "origin": 37,
+          "destination": 6,
+          "meters": 151.60344174542115,
+          "arrival_s": 32496.755014918963,
+          "service_start_s": 32496.755014918963,
+          "departure_s": 32554.755014918963,
+          "arrival_kwh": 94.73268843039112,
+          "departure_kwh": 94.73268843039112
+        },
+        {
+          "origin": 6,
+          "destination": 38,
+          "meters": 51.277795945307986,
+          "arrival_s": 32563.466297356736,
+          "service_start_s": 32563.466297356736,
+          "departure_s": 32613.466297356736,
+          "arrival_kwh": 94.71273598060695,
+          "departure_kwh": 94.71273598060695
+        },
+        {
+          "origin": 38,
+          "destination": 85,
+          "meters": 37.33056753327148,
+          "arrival_s": 32619.80816738741,
+          "service_start_s": 32619.80816738741,
+          "departure_s": 32664.80816738741,
+          "arrival_kwh": 94.69821046794809,
+          "departure_kwh": 94.69821046794809
+        },
+        {
+          "origin": 85,
+          "destination": 15,
+          "meters": 114.11584293399713,
+          "arrival_s": 32684.19463515765,
+          "service_start_s": 32684.19463515765,
+          "departure_s": 32823.19463515765,
+          "arrival_kwh": 94.65380741622279,
+          "departure_kwh": 94.65380741622279
+        },
+        {
+          "origin": 15,
+          "destination": 50,
+          "meters": 168.24168603923397,
+          "arrival_s": 32859.12944529124,
+          "service_start_s": 32859.12944529124,
+          "departure_s": 32917.12944529124,
+          "arrival_kwh": 94.58834372515695,
+          "departure_kwh": 94.58834372515695
+        },
+        {
+          "origin": 50,
+          "destination": 12,
+          "meters": 475.7011964525323,
+          "arrival_s": 33015.5002652002,
+          "service_start_s": 33015.5002652002,
+          "departure_s": 33052.5002652002,
+          "arrival_kwh": 94.40324598334662,
+          "departure_kwh": 94.40324598334662
+        },
+        {
+          "origin": 12,
+          "destination": 4,
+          "meters": 126.00487512652647,
+          "arrival_s": 33087.47851277597,
+          "service_start_s": 33087.47851277597,
+          "departure_s": 33125.47851277597,
+          "arrival_kwh": 94.35421684905614,
+          "departure_kwh": 94.35421684905614
+        },
+        {
+          "origin": 4,
+          "destination": 7,
+          "meters": 71.72225060345887,
+          "arrival_s": 33145.03129106643,
+          "service_start_s": 33145.03129106643,
+          "departure_s": 33188.03129106643,
+          "arrival_kwh": 94.32630935854895,
+          "departure_kwh": 94.32630935854895
+        },
+        {
+          "origin": 7,
+          "destination": 71,
+          "meters": 243.66133339944855,
+          "arrival_s": 33244.58766032794,
+          "service_start_s": 33244.58766032794,
+          "departure_s": 33305.58766032794,
+          "arrival_kwh": 94.23149950119509,
+          "departure_kwh": 94.23149950119509
+        },
+        {
+          "origin": 71,
+          "destination": 86,
+          "meters": 344.36347519830923,
+          "arrival_s": 33366.69215657245,
+          "service_start_s": 33366.69215657245,
+          "departure_s": 33421.69215657245,
+          "arrival_kwh": 94.09750593107901,
+          "departure_kwh": 94.09750593107901
+        },
+        {
+          "origin": 86,
+          "destination": 87,
+          "meters": 135.02357766548002,
+          "arrival_s": 33439.333388115774,
+          "service_start_s": 33439.333388115774,
+          "departure_s": 33504.333388115774,
+          "arrival_kwh": 94.04496757401073,
+          "departure_kwh": 94.04496757401073
+        },
+        {
+          "origin": 87,
+          "destination": 32,
+          "meters": 373.83427485350256,
+          "arrival_s": 33571.65852102764,
+          "service_start_s": 33571.65852102764,
+          "departure_s": 33631.65852102764,
+          "arrival_kwh": 93.89950676667473,
+          "departure_kwh": 93.89950676667473
+        },
+        {
+          "origin": 32,
+          "destination": 5,
+          "meters": 169.82637466513174,
+          "arrival_s": 33679.049442569565,
+          "service_start_s": 33679.049442569565,
+          "departure_s": 33843.8709064567,
+          "arrival_kwh": 93.8334264652486,
+          "departure_kwh": 93.8334264652486
+        },
+        {
+          "origin": 5,
+          "destination": 28,
+          "meters": 235.53174147336998,
+          "arrival_s": 33897.68902422272,
+          "service_start_s": 33897.68902422272,
+          "departure_s": 33937.68902422272,
+          "arrival_kwh": 93.74177987323563,
+          "departure_kwh": 93.74177987323563
+        },
+        {
+          "origin": 28,
+          "destination": 96,
+          "meters": 103.3414437933079,
+          "arrival_s": 33966.25560432189,
+          "service_start_s": 33966.25560432189,
+          "departure_s": 34168.25560432189,
+          "arrival_kwh": 93.70156919471682,
+          "departure_kwh": 93.70156919471682
+        },
+        {
+          "origin": 96,
+          "destination": 65,
+          "meters": 285.5003767812506,
+          "arrival_s": 34222.772531863666,
+          "service_start_s": 34222.772531863666,
+          "departure_s": 34576.772531863666,
+          "arrival_kwh": 93.59047955394591,
+          "departure_kwh": 93.59047955394591
+        },
+        {
+          "origin": 65,
+          "destination": 21,
+          "meters": 166.7573207134737,
+          "arrival_s": 34611.7710388222,
+          "service_start_s": 34611.7710388222,
+          "departure_s": 34672.7710388222,
+          "arrival_kwh": 93.52559343693677,
+          "departure_kwh": 93.52559343693677
+        },
+        {
+          "origin": 21,
+          "destination": 30,
+          "meters": 242.36940748365816,
+          "arrival_s": 34729.13824504633,
+          "service_start_s": 34729.13824504633,
+          "departure_s": 34814.069667953954,
+          "arrival_kwh": 93.43128627449177,
+          "departure_kwh": 93.43128627449177
+        },
+        {
+          "origin": 30,
+          "destination": 63,
+          "meters": 200.001480274518,
+          "arrival_s": 34856.57014792704,
+          "service_start_s": 34856.57014792704,
+          "departure_s": 35084.57014792704,
+          "arrival_kwh": 93.35346468683632,
+          "departure_kwh": 93.35346468683632
+        },
+        {
+          "origin": 63,
+          "destination": 46,
+          "meters": 113.41127442399248,
+          "arrival_s": 35103.836920707,
+          "service_start_s": 35103.836920707,
+          "departure_s": 35188.836920707,
+          "arrival_kwh": 93.30933578628223,
+          "departure_kwh": 93.30933578628223
+        },
+        {
+          "origin": 46,
+          "destination": 43,
+          "meters": 124.12545890367255,
+          "arrival_s": 35209.92386312124,
+          "service_start_s": 35209.92386312124,
+          "departure_s": 35282.96973916213,
+          "arrival_kwh": 93.26103794235084,
+          "departure_kwh": 93.26103794235084
+        },
+        {
+          "origin": 43,
+          "destination": 8,
+          "meters": 41.94642968494145,
+          "arrival_s": 35292.07279448055,
+          "service_start_s": 35292.07279448055,
+          "departure_s": 35339.60322381417,
+          "arrival_kwh": 93.24471637438005,
+          "departure_kwh": 93.24471637438005
+        },
+        {
+          "origin": 8,
+          "destination": 27,
+          "meters": 114.30709231044895,
+          "arrival_s": 35371.39890185679,
+          "service_start_s": 35371.39890185679,
+          "departure_s": 35402.39890185679,
+          "arrival_kwh": 93.20023890655497,
+          "departure_kwh": 93.20023890655497
+        },
+        {
+          "origin": 27,
+          "destination": 66,
+          "meters": 275.4763689895808,
+          "arrival_s": 35468.25406571264,
+          "service_start_s": 35468.25406571264,
+          "departure_s": 35566.58505269076,
+          "arrival_kwh": 93.0930496579209,
+          "departure_kwh": 93.0930496579209
+        },
+        {
+          "origin": 66,
+          "destination": 90,
+          "meters": 282.38541576086527,
+          "arrival_s": 35623.21425740624,
+          "service_start_s": 35623.21425740624,
+          "departure_s": 35705.21425740624,
+          "arrival_kwh": 92.98317206423962,
+          "departure_kwh": 92.98317206423962
+        },
+        {
+          "origin": 90,
+          "destination": 2,
+          "meters": 74.41788143720268,
+          "arrival_s": 35717.856672542635,
+          "service_start_s": 35717.856672542635,
+          "departure_s": 35757.856672542635,
+          "arrival_kwh": 92.95421569013955,
+          "departure_kwh": 92.95421569013955
+        },
+        {
+          "origin": 2,
+          "destination": 19,
+          "meters": 168.953989819576,
+          "arrival_s": 35794.28910456986,
+          "service_start_s": 35794.28910456986,
+          "departure_s": 36328.28910456986,
+          "arrival_kwh": 92.88847483806967,
+          "departure_kwh": 92.88847483806967
+        },
+        {
+          "origin": 19,
+          "destination": 34,
+          "meters": 176.11087706511995,
+          "arrival_s": 36377.5189412867,
+          "service_start_s": 36377.5189412867,
+          "departure_s": 36429.5189412867,
+          "arrival_kwh": 92.8199492049704,
+          "departure_kwh": 92.8199492049704
+        },
+        {
+          "origin": 34,
+          "destination": 31,
+          "meters": 270.5105894261135,
+          "arrival_s": 36491.40896877505,
+          "service_start_s": 36491.40896877505,
+          "departure_s": 36561.40896877505,
+          "arrival_kwh": 92.7146921662832,
+          "departure_kwh": 92.7146921662832
+        },
+        {
+          "origin": 31,
+          "destination": 76,
+          "meters": 91.34538785220475,
+          "arrival_s": 36586.71543668991,
+          "service_start_s": 36586.71543668991,
+          "departure_s": 36609.71543668991,
+          "arrival_kwh": 92.67914921381153,
+          "departure_kwh": 92.67914921381153
+        },
+        {
+          "origin": 76,
+          "destination": 62,
+          "meters": 33.935270248453875,
+          "arrival_s": 36616.330304590105,
+          "service_start_s": 36616.330304590105,
+          "departure_s": 36656.330304590105,
+          "arrival_kwh": 92.66594482850084,
+          "departure_kwh": 92.66594482850084
+        },
+        {
+          "origin": 62,
+          "destination": 9,
+          "meters": 95.17125863220927,
+          "arrival_s": 36671.35758004606,
+          "service_start_s": 36671.35758004606,
+          "departure_s": 36769.35758004606,
+          "arrival_kwh": 92.62891321035602,
+          "departure_kwh": 92.62891321035602
+        },
+        {
+          "origin": 9,
+          "destination": 70,
+          "meters": 77.03550084716466,
+          "arrival_s": 36782.44468711148,
+          "service_start_s": 36782.44468711148,
+          "departure_s": 36965.99586280397,
+          "arrival_kwh": 92.59893830730265,
+          "departure_kwh": 92.59893830730265
+        },
+        {
+          "origin": 70,
+          "destination": 40,
+          "meters": 346.21424943417003,
+          "arrival_s": 37029.297292297706,
+          "service_start_s": 37029.297292297706,
+          "departure_s": 37122.297292297706,
+          "arrival_kwh": 92.4642245915695,
+          "departure_kwh": 92.4642245915695
+        },
+        {
+          "origin": 40,
+          "destination": 33,
+          "meters": 70.2198043361429,
+          "arrival_s": 37138.71165267737,
+          "service_start_s": 37138.71165267737,
+          "departure_s": 37174.71165267737,
+          "arrival_kwh": 92.43690171050486,
+          "departure_kwh": 92.43690171050486
+        },
+        {
+          "origin": 33,
+          "destination": 89,
+          "meters": 143.31328904289265,
+          "arrival_s": 37199.05830242945,
+          "service_start_s": 37199.05830242945,
+          "departure_s": 37247.05830242945,
+          "arrival_kwh": 92.38113778480724,
+          "departure_kwh": 92.38113778480724
+        },
+        {
+          "origin": 89,
+          "destination": 79,
+          "meters": 99.97648227491355,
+          "arrival_s": 37264.04271757788,
+          "service_start_s": 37264.04271757788,
+          "departure_s": 37387.65881549323,
+          "arrival_kwh": 92.34223642983645,
+          "departure_kwh": 92.34223642983645
+        },
+        {
+          "origin": 79,
+          "destination": 74,
+          "meters": 259.20713987181165,
+          "arrival_s": 37431.63020188881,
+          "service_start_s": 37431.63020188881,
+          "departure_s": 37512.63020188881,
+          "arrival_kwh": 92.24137762054781,
+          "departure_kwh": 92.24137762054781
+        },
+        {
+          "origin": 74,
+          "destination": 58,
+          "meters": 218.5413238802405,
+          "arrival_s": 37552.576412934475,
+          "service_start_s": 37552.576412934475,
+          "departure_s": 37597.576412934475,
+          "arrival_kwh": 92.15634208596406,
+          "departure_kwh": 92.15634208596406
+        },
+        {
+          "origin": 58,
+          "destination": 55,
+          "meters": 52.96655567047864,
+          "arrival_s": 37606.57458880564,
+          "service_start_s": 37606.57458880564,
+          "departure_s": 37682.67522156385,
+          "arrival_kwh": 92.13573253122846,
+          "departure_kwh": 92.13573253122846
+        },
+        {
+          "origin": 55,
+          "destination": 81,
+          "meters": 145.2473691716716,
+          "arrival_s": 37708.556503891945,
+          "service_start_s": 37708.556503891945,
+          "departure_s": 37756.76244539609,
+          "arrival_kwh": 92.07921604516945,
+          "departure_kwh": 92.07921604516945
+        },
+        {
+          "origin": 81,
+          "destination": 16,
+          "meters": 260.5573204679295,
+          "arrival_s": 37802.23305552406,
+          "service_start_s": 37802.23305552406,
+          "departure_s": 37878.08838833575,
+          "arrival_kwh": 91.97783187378114,
+          "departure_kwh": 91.97783187378114
+        },
+        {
+          "origin": 16,
+          "destination": 51,
+          "meters": 126.183090042148,
+          "arrival_s": 37901.74539256975,
+          "service_start_s": 37901.74539256975,
+          "departure_s": 37961.74539256975,
+          "arrival_kwh": 91.92873339516552,
+          "departure_kwh": 91.92873339516552
+        },
+        {
+          "origin": 51,
+          "destination": 17,
+          "meters": 325.8190568623136,
+          "arrival_s": 38028.715687708485,
+          "service_start_s": 38028.715687708485,
+          "departure_s": 38098.715687708485,
+          "arrival_kwh": 91.80195555202843,
+          "departure_kwh": 91.80195555202843
+        },
+        {
+          "origin": 17,
+          "destination": 47,
+          "meters": 232.06541795168525,
+          "arrival_s": 38147.53822687362,
+          "service_start_s": 38147.53822687362,
+          "departure_s": 38178.53822687362,
+          "arrival_kwh": 91.71165772403167,
+          "departure_kwh": 91.71165772403167
+        },
+        {
+          "origin": 47,
+          "destination": 88,
+          "meters": 86.29494473205749,
+          "arrival_s": 38193.198366270306,
+          "service_start_s": 38193.198366270306,
+          "departure_s": 38235.198366270306,
+          "arrival_kwh": 91.67807992452504,
+          "departure_kwh": 91.67807992452504
+        },
+        {
+          "origin": 88,
+          "destination": 13,
+          "meters": 271.5275881667083,
+          "arrival_s": 38283.23385380933,
+          "service_start_s": 38283.23385380933,
+          "departure_s": 38335.23385380933,
+          "arrival_kwh": 91.57242716648352,
+          "departure_kwh": 91.57242716648352
+        },
+        {
+          "origin": 13,
+          "destination": 72,
+          "meters": 42.288950976562845,
+          "arrival_s": 38346.582058664644,
+          "service_start_s": 38346.582058664644,
+          "departure_s": 38360.582058664644,
+          "arrival_kwh": 91.55597232174556,
+          "departure_kwh": 91.55597232174556
+        },
+        {
+          "origin": 72,
+          "destination": 49,
+          "meters": 222.54258357083708,
+          "arrival_s": 38410.5858373562,
+          "service_start_s": 38410.5858373562,
+          "departure_s": 38456.5858373562,
+          "arrival_kwh": 91.46937987677636,
+          "departure_kwh": 91.46937987677636
+        },
+        {
+          "origin": 49,
+          "destination": 52,
+          "meters": 193.58465938773963,
+          "arrival_s": 38499.41340715349,
+          "service_start_s": 38499.41340715349,
+          "departure_s": 38580.88765350679,
+          "arrival_kwh": 91.39405510658658,
+          "departure_kwh": 91.39405510658658
+        },
+        {
+          "origin": 52,
+          "destination": 91,
+          "meters": 285.8295660700917,
+          "arrival_s": 38630.22026960734,
+          "service_start_s": 38630.22026960734,
+          "departure_s": 38659.22026960734,
+          "arrival_kwh": 91.28283737659821,
+          "departure_kwh": 91.28283737659821
+        },
+        {
+          "origin": 91,
+          "destination": 24,
+          "meters": 212.03451529226732,
+          "arrival_s": 38702.82397899567,
+          "service_start_s": 38702.82397899567,
+          "departure_s": 38750.82397899567,
+          "arrival_kwh": 91.20033367414986,
+          "departure_kwh": 91.20033367414986
+        },
+        {
+          "origin": 24,
+          "destination": 68,
+          "meters": 208.06405638749968,
+          "arrival_s": 38793.00109380694,
+          "service_start_s": 38793.00109380694,
+          "departure_s": 38943.6439845911,
+          "arrival_kwh": 91.11937489734538,
+          "departure_kwh": 91.11937489734538
+        },
+        {
+          "origin": 68,
+          "destination": 26,
+          "meters": 124.29675681114061,
+          "arrival_s": 38964.76002779693,
+          "service_start_s": 38964.76002779693,
+          "departure_s": 38992.76002779693,
+          "arrival_kwh": 91.0710104005317,
+          "departure_kwh": 91.0710104005317
+        },
+        {
+          "origin": 26,
+          "destination": 98,
+          "meters": 207.2888576755516,
+          "arrival_s": 39038.397516186626,
+          "service_start_s": 39038.397516186626,
+          "departure_s": 39217.397516186626,
+          "arrival_kwh": 90.99035325746729,
+          "departure_kwh": 90.99035325746729
+        },
+        {
+          "origin": 98,
+          "destination": 22,
+          "meters": 115.31467248602941,
+          "arrival_s": 39249.51845109484,
+          "service_start_s": 39249.51845109484,
+          "departure_s": 39303.83461533037,
+          "arrival_kwh": 90.94548373509919,
+          "departure_kwh": 90.94548373509919
+        },
+        {
+          "origin": 22,
+          "destination": 56,
+          "meters": 244.31653303610682,
+          "arrival_s": 39347.448509319554,
+          "service_start_s": 39347.448509319554,
+          "departure_s": 39403.448509319554,
+          "arrival_kwh": 90.85041893625245,
+          "departure_kwh": 90.85041893625245
+        },
+        {
+          "origin": 56,
+          "destination": 41,
+          "meters": 123.23201810563951,
+          "arrival_s": 39425.530663024496,
+          "service_start_s": 39425.530663024496,
+          "departure_s": 39543.52784739824,
+          "arrival_kwh": 90.80246873465492,
+          "departure_kwh": 90.80246873465492
+        },
+        {
+          "origin": 41,
+          "destination": 14,
+          "meters": 187.51596951633826,
+          "arrival_s": 39583.19433374014,
+          "service_start_s": 39583.19433374014,
+          "departure_s": 39643.19433374014,
+          "arrival_kwh": 90.72950532239176,
+          "departure_kwh": 90.72950532239176
+        },
+        {
+          "origin": 14,
+          "destination": 78,
+          "meters": 177.0918718939142,
+          "arrival_s": 39678.7517030631,
+          "service_start_s": 39678.7517030631,
+          "departure_s": 39973.7517030631,
+          "arrival_kwh": 90.66059797924238,
+          "departure_kwh": 90.66059797924238
+        },
+        {
+          "origin": 78,
+          "destination": 84,
+          "meters": 122.90369270766178,
+          "arrival_s": 39991.73494412227,
+          "service_start_s": 39991.73494412227,
+          "departure_s": 40050.73494412227,
+          "arrival_kwh": 90.612775530718,
+          "departure_kwh": 90.612775530718
+        },
+        {
+          "origin": 84,
+          "destination": 53,
+          "meters": 147.41530939516184,
+          "arrival_s": 40074.13732220886,
+          "service_start_s": 40074.13732220886,
+          "departure_s": 40292.33846474126,
+          "arrival_kwh": 90.55541548815178,
+          "departure_kwh": 90.55541548815178
+        },
+        {
+          "origin": 53,
+          "destination": 39,
+          "meters": 37.78299898142219,
+          "arrival_s": 40298.75719568329,
+          "service_start_s": 40298.75719568329,
+          "departure_s": 40330.75719568329,
+          "arrival_kwh": 90.54071393212789,
+          "departure_kwh": 90.54071393212789
+        },
+        {
+          "origin": 39,
+          "destination": 48,
+          "meters": 147.63917625593106,
+          "arrival_s": 40355.83874491012,
+          "service_start_s": 40355.83874491012,
+          "departure_s": 40503.83874491012,
+          "arrival_kwh": 90.48326678183375,
+          "departure_kwh": 90.48326678183375
+        },
+        {
+          "origin": 48,
+          "destination": 10,
+          "meters": 63.172970185891145,
+          "arrival_s": 40514.57082836997,
+          "service_start_s": 40514.57082836997,
+          "departure_s": 40570.57082836997,
+          "arrival_kwh": 90.45868585958243,
+          "departure_kwh": 90.45868585958243
+        },
+        {
+          "origin": 10,
+          "destination": 29,
+          "meters": 156.45986152956405,
+          "arrival_s": 40597.15087181436,
+          "service_start_s": 40597.15087181436,
+          "departure_s": 40660.15087181436,
+          "arrival_kwh": 90.39780653603007,
+          "departure_kwh": 90.39780653603007
+        },
+        {
+          "origin": 29,
+          "destination": 93,
+          "meters": 312.1874243253264,
+          "arrival_s": 40714.57627575031,
+          "service_start_s": 40714.57627575031,
+          "departure_s": 40792.57627575031,
+          "arrival_kwh": 90.2763328300669,
+          "departure_kwh": 90.2763328300669
+        },
+        {
+          "origin": 93,
+          "destination": 92,
+          "meters": 47.4401248754773,
+          "arrival_s": 40805.5371928605,
+          "service_start_s": 40805.5371928605,
+          "departure_s": 40897.5371928605,
+          "arrival_kwh": 90.25787363750835,
+          "departure_kwh": 90.25787363750835
+        },
+        {
+          "origin": 92,
+          "destination": 42,
+          "meters": 142.74329146782162,
+          "arrival_s": 40925.29888010831,
+          "service_start_s": 40925.29888010831,
+          "departure_s": 40982.43928695748,
+          "arrival_kwh": 90.20233150075045,
+          "departure_kwh": 90.20233150075045
+        },
+        {
+          "origin": 42,
+          "destination": 35,
+          "meters": 50.834656707708696,
+          "arrival_s": 40991.075287082764,
+          "service_start_s": 40991.075287082764,
+          "departure_s": 41209.075287082764,
+          "arrival_kwh": 90.18255147868518,
+          "departure_kwh": 90.18255147868518
+        },
+        {
+          "origin": 35,
+          "destination": 45,
+          "meters": 148.34589686701017,
+          "arrival_s": 41234.27689690764,
+          "service_start_s": 41234.27689690764,
+          "departure_s": 41267.99037815729,
+          "arrival_kwh": 90.12482933982642,
+          "departure_kwh": 90.12482933982642
+        },
+        {
+          "origin": 45,
+          "destination": 100,
+          "meters": 149.50661933274557,
+          "arrival_s": 41300.35993375493,
+          "service_start_s": 41300.35993375493,
+          "departure_s": 41419.29360371894,
+          "arrival_kwh": 90.06665555798489,
+          "departure_kwh": 90.06665555798489
+        },
+        {
+          "origin": 100,
+          "destination": 95,
+          "meters": 150.92168616374292,
+          "arrival_s": 41461.20468941487,
+          "service_start_s": 41461.20468941487,
+          "departure_s": 41660.41692602083,
+          "arrival_kwh": 90.00793116648148,
+          "departure_kwh": 90.00793116648148
+        },
+        {
+          "origin": 95,
+          "destination": 73,
+          "meters": 398.7754072241919,
+          "arrival_s": 41737.46366165538,
+          "service_start_s": 41737.46366165538,
+          "departure_s": 41778.46366165538,
+          "arrival_kwh": 89.85276563837868,
+          "departure_kwh": 89.85276563837868
+        },
+        {
+          "origin": 73,
+          "destination": 75,
+          "meters": 31.28540326887115,
+          "arrival_s": 41783.77855436929,
+          "service_start_s": 41783.77855436929,
+          "departure_s": 41836.77855436929,
+          "arrival_kwh": 89.84059232971376,
+          "departure_kwh": 89.84059232971376
+        },
+        {
+          "origin": 75,
+          "destination": 61,
+          "meters": 110.91885334153261,
+          "arrival_s": 41855.62190442596,
+          "service_start_s": 41855.62190442596,
+          "departure_s": 41954.88937699435,
+          "arrival_kwh": 89.79743324281044,
+          "departure_kwh": 89.79743324281044
+        },
+        {
+          "origin": 61,
+          "destination": 64,
+          "meters": 236.78370748929615,
+          "arrival_s": 42005.96444557773,
+          "service_start_s": 42005.96444557773,
+          "departure_s": 42070.96444557773,
+          "arrival_kwh": 89.70529950448775,
+          "departure_kwh": 89.70529950448775
+        },
+        {
+          "origin": 64,
+          "destination": 67,
+          "meters": 131.01102559419968,
+          "arrival_s": 42107.292907565905,
+          "service_start_s": 42107.292907565905,
+          "departure_s": 42162.292907565905,
+          "arrival_kwh": 89.65432245172737,
+          "departure_kwh": 89.65432245172737
+        },
+        {
+          "origin": 67,
+          "destination": 44,
+          "meters": 541.5568239654596,
+          "arrival_s": 42251.801050596856,
+          "service_start_s": 42251.801050596856,
+          "departure_s": 42315.801050596856,
+          "arrival_kwh": 89.44359995212992,
+          "departure_kwh": 89.44359995212992
+        },
+        {
+          "origin": 44,
+          "destination": 1,
+          "meters": 100.55790461862973,
+          "arrival_s": 42340.92036900191,
+          "service_start_s": 42340.92036900191,
+          "departure_s": 42475.774294000475,
+          "arrival_kwh": 89.40447236278415,
+          "departure_kwh": 89.40447236278415
+        },
+        {
+          "origin": 1,
+          "destination": 60,
+          "meters": 230.19285053346795,
+          "arrival_s": 42522.91652908616,
+          "service_start_s": 42522.91652908616,
+          "departure_s": 42580.97863568276,
+          "arrival_kwh": 89.31490316024194,
+          "departure_kwh": 89.31490316024194
+        },
+        {
+          "origin": 60,
+          "destination": 36,
+          "meters": 574.1421396965619,
+          "arrival_s": 42689.140001902655,
+          "service_start_s": 42689.140001902655,
+          "departure_s": 42737.140001902655,
+          "arrival_kwh": 89.09150154946506,
+          "departure_kwh": 89.09150154946506
+        },
+        {
+          "origin": 36,
+          "destination": 77,
+          "meters": 163.54901339852836,
+          "arrival_s": 42782.713505815744,
+          "service_start_s": 42782.713505815744,
+          "departure_s": 42848.713505815744,
+          "arrival_kwh": 89.02786380106097,
+          "departure_kwh": 89.02786380106097
+        },
+        {
+          "origin": 77,
+          "destination": 97,
+          "meters": 167.39800718517523,
+          "arrival_s": 42895.28768118809,
+          "service_start_s": 42895.28768118809,
+          "departure_s": 43015.28768118809,
+          "arrival_kwh": 88.96272838970488,
+          "departure_kwh": 88.96272838970488
+        },
+        {
+          "origin": 97,
+          "destination": 94,
+          "meters": 137.223427464191,
+          "arrival_s": 43053.47494586885,
+          "service_start_s": 43053.47494586885,
+          "departure_s": 43133.47494586885,
+          "arrival_kwh": 88.90933405995227,
+          "departure_kwh": 88.90933405995227
+        },
+        {
+          "origin": 94,
+          "destination": 57,
+          "meters": 109.49357050597177,
+          "arrival_s": 43162.283323374686,
+          "service_start_s": 43162.283323374686,
+          "departure_s": 43261.283323374686,
+          "arrival_kwh": 88.86672955780988,
+          "departure_kwh": 88.86672955780988
+        },
+        {
+          "origin": 57,
+          "destination": 69,
+          "meters": 164.50135132733973,
+          "arrival_s": 43295.53199448836,
+          "service_start_s": 43295.53199448836,
+          "departure_s": 43351.53199448836,
+          "arrival_kwh": 88.8027212499004,
+          "departure_kwh": 88.8027212499004
+        },
+        {
+          "origin": 69,
+          "destination": 23,
+          "meters": 97.45487370690776,
+          "arrival_s": 43368.08802842367,
+          "service_start_s": 43368.08802842367,
+          "departure_s": 43404.08802842367,
+          "arrival_kwh": 88.76480106557865,
+          "departure_kwh": 88.76480106557865
+        },
+        {
+          "origin": 23,
+          "destination": 80,
+          "meters": 102.09133023374713,
+          "arrival_s": 43424.51993502601,
+          "service_start_s": 43424.51993502601,
+          "departure_s": 43490.073926344754,
+          "arrival_kwh": 88.72507681256941,
+          "departure_kwh": 88.72507681256941
+        },
+        {
+          "origin": 80,
+          "destination": 11,
+          "meters": 67.32392584162815,
+          "arrival_s": 43508.447637507576,
+          "service_start_s": 43508.447637507576,
+          "departure_s": 43563.447637507576,
+          "arrival_kwh": 88.69888073247539,
+          "departure_kwh": 88.69888073247539
+        },
+        {
+          "origin": 11,
+          "destination": 54,
+          "meters": 766.6030702332456,
+          "arrival_s": 43693.90729023049,
+          "service_start_s": 43693.90729023049,
+          "departure_s": 43731.90729023049,
+          "arrival_kwh": 88.40059160008892,
+          "departure_kwh": 88.40059160008892
+        },
+        {
+          "origin": 54,
+          "destination": 59,
+          "meters": 201.10634365218402,
+          "arrival_s": 43788.15265979159,
+          "service_start_s": 43788.15265979159,
+          "departure_s": 43863.15265979159,
+          "arrival_kwh": 88.3223401045044,
+          "departure_kwh": 88.3223401045044
+        },
+        {
+          "origin": 59,
+          "destination": 83,
+          "meters": 391.661910982991,
+          "arrival_s": 43940.75117314706,
+          "service_start_s": 43940.75117314706,
+          "departure_s": 43982.75117314706,
+          "arrival_kwh": 88.16994247377173,
+          "departure_kwh": 88.16994247377173
+        },
+        {
+          "origin": 83,
+          "destination": 82,
+          "meters": 56.879899015060374,
+          "arrival_s": 43992.414163847374,
+          "service_start_s": 43992.414163847374,
+          "departure_s": 44124.45863207513,
+          "arrival_kwh": 88.14781021734564,
+          "departure_kwh": 88.14781021734564
+        },
+        {
+          "origin": 82,
+          "destination": 18,
+          "meters": 39.955711678223395,
+          "arrival_s": 44131.2464723677,
+          "service_start_s": 44131.2464723677,
+          "departure_s": 44215.530175491804,
+          "arrival_kwh": 88.13226324782103,
+          "departure_kwh": 88.13226324782103
+        },
+        {
+          "origin": 18,
+          "destination": 99,
+          "meters": 198.43323758800435,
+          "arrival_s": 44260.115444869676,
+          "service_start_s": 44260.115444869676,
+          "departure_s": 44308.115444869676,
+          "arrival_kwh": 88.05505187132765,
+          "departure_kwh": 88.05505187132765
+        },
+        {
+          "origin": 99,
+          "destination": 3,
+          "meters": 118.50653461676146,
+          "arrival_s": 44341.10695447049,
+          "service_start_s": 44341.10695447049,
+          "departure_s": 44435.10695447049,
+          "arrival_kwh": 88.00894037925887,
+          "departure_kwh": 88.00894037925887
+        },
+        {
+          "origin": 3,
+          "destination": 0,
+          "meters": 13101.68011972591,
+          "arrival_s": 46276.72052680121,
+          "service_start_s": null,
+          "departure_s": 46276.72052680121,
+          "arrival_kwh": 82.91101037158342,
+          "departure_kwh": 82.91101037158342
+        }
+      ]
+    }
+  ]
+}
