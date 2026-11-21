@@ -103,13 +103,13 @@ args=(--input "$INPUT" --expect-id "$ID" --expect-sha256 "$SHA" --seconds 60 --t
 "$PY" replay.py --input "$INPUT" --routes "examples/chicago-cus100/01-ortools-cvrp/routes.json" --trace
 ```
 
-## 正式评测配置
+## 正式 Test1 评测
 
-`batch` 默认每例每项 1,800 秒、1 个线程，连续一次运行记录 60、300、900、1,800 秒的结果。不同输入可并行，执行器为它们选取不同物理核；同一实例内按表顺序运行。实际并发数还应受可用内存约束。以下是配置示例，本轮只执行上面的单例 60 秒验收。
+Chicago 和 Houston 的 Test1 共 300 例。本轮在 CVRP 视图上依次运行 OR-Tools、HGS-CVRP、PyVRP-ILS 和 Gurobi，共 1,200 个求解任务。每个任务运行一次，预算为 30 分钟，记录第 1、5、15、30 分钟的最好可行解。
 
 ```bash
-"$PY" bench.py batch --solver all --input /absolute/path/to/instance1.parquet /absolute/path/to/instance2.parquet \
-  --seconds 1800 --threads 1 --jobs 2 --seed 20261103 --out formal
+"$PY" scripts/run_test1.py --data-root ../city-v2-output --out ../test1-cvrp --view cvrp --plan-only
+"$PY" scripts/run_test1.py --data-root ../city-v2-output --out ../test1-cvrp --view cvrp
 ```
 
-若有足够内存和 25 个可用物理核，可提供 25 份或更多输入并设置 `--jobs 25`。可用 `--solver gurobi --view evrptw` 等参数选择单个组合。
+每个方法先并行处理两城的 Cus100 和 Cus500，再处理 Cus1000。中断后用原命令和原结果目录续跑。并发数、方法选择、检查点和失败记录见 [Test1 运行说明](docs/formal-test1.zh-CN.md)。
