@@ -1,6 +1,6 @@
 # Chicago 和 Houston 的 Test1 正式评测
 
-本轮用四个 CVRP 求解器评测同一组 300 个 Test1 实例，共 1,200 个“方法 × 实例”任务。每个任务使用一个求解线程和同一个随机种子。三个视图都可以读取同一份 Stage 2 Parquet。[运行环境和依赖准备](../README.md#准备运行环境)
+选择 `--view cvrp --solver all` 会用五个求解器评测同一组 300 个 Test1 实例，共 1,500 个“方法 × 实例”任务。每个任务使用一个求解线程和同一个随机种子。三个视图都可以读取同一份 Stage 2 Parquet。[运行环境和依赖准备](../README.md#准备运行环境)
 
 | 城市 | Cus100 | Cus500 | Cus1000 | 合计 |
 |---|---:|---:|---:|---:|
@@ -23,7 +23,7 @@ args=(--data-root "$DATA_ROOT" --out "$OUT" --view cvrp --solver all
 "$PY" scripts/run_test1.py "${args[@]}"
 ```
 
-`--plan-only` 可在启动求解前核对输入和作业计划。上述城市、方法选择、并发数、预算和种子均使用默认值。CVRP 测试依次运行 `ortools`、`hgs`、`pyvrp-ils`、`gurobi`。每个方法分两批处理实例。
+`--plan-only` 可在启动求解前核对输入和作业计划。上述城市、方法选择、并发数、预算和种子均使用默认值。CVRP 测试依次运行 `ortools`、`hgs`、`pyvrp-ils`、`gurobi`、`lkh`。每个方法分两批处理实例。
 
 | 同一方法的批次 | 输入 | 实例数 | 默认并发上限 |
 |---|---|---:|---:|
@@ -65,12 +65,12 @@ CSV 每个实际检查点一行，包含实例 ID、方法、检查点秒数、�
 
 ## 选择城市、方法和视图
 
-`--cities chicago` 或 `--cities houston` 可单独评测一个城市，每城 150 例。`--solver` 接受 `all` 或一个方法名。`all` 依次运行所选视图的四个方法。
+`--cities chicago` 或 `--cities houston` 可单独评测一个城市，每城 150 例。`--solver` 接受 `all` 或一个方法名。`all` 依次运行所选视图的所有已登记方法。
 
 | `--view` | 可选的 `--solver` |
 |---|---|
-| `cvrp` | `ortools`、`hgs`、`pyvrp-ils`、`gurobi` |
-| `vrptw` | `ortools`、`pyvrp-ils`、`pyvrp-hgs`、`gurobi` |
+| `cvrp` | `ortools`、`hgs`、`pyvrp-ils`、`gurobi`、`lkh` |
+| `vrptw` | `ortools`、`pyvrp-ils`、`pyvrp-hgs`、`gurobi`、`lkh` |
 | `evrptw` | `vns-ts`、`routingblocks`、`hma`、`gurobi` |
 
 以下命令可分别预览单个 CVRP 方法、VRPTW 的 PyVRP-HGS 和 EVRPTW 的 RoutingBlocks 作业计划。需要执行相应评测时移除 `--plan-only`，并使该方法的依赖和许可就绪。

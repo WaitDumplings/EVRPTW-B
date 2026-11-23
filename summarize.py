@@ -69,7 +69,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("instance_folder", type=Path)
     base = parser.parse_args().instance_folder.resolve()
-    records = [record(base, i, method, view) for i, (method, view) in enumerate(COMBINATIONS, 1)]
+    records = []
+    for i, (method, view) in enumerate(COMBINATIONS, 1):
+        # The original acceptance suite predates the two optional LKH runs.
+        if method == "lkh" and not (base / f"{i:02d}-{method}-{view}").exists():
+            continue
+        records.append(record(base, i, method, view))
     if len({(r["input_sha256"], r["seed"]) for r in records}) != 1:
         raise ValueError("runs used different inputs or seeds")
     with (base / "summary.csv").open("w", newline="") as f:
@@ -79,7 +84,7 @@ def main():
     count = sum(r["status"] == "pass" for r in records)
     intro = [
         "# Chicago Cus100 单例验收", "",
-        f"通过 {count}/12。实例 `{base.name}`，SHA-256 `{records[0]['input_sha256']}`。"
+        f"通过 {count}/{len(records)}。实例 `{base.name}`，SHA-256 `{records[0]['input_sha256']}`。"
         f"每项 1 个物理核、1 个求解线程、60 秒墙钟上限，seed 为 `{records[0]['seed']}`。", "",
         "| 序号 | 求解器 | 版本 / 提交 | 视图 | 状态 | 墙钟秒 | 首个可行秒 | 回放距离 m | 车辆 | 访站 | Gurobi 终态、适用模型、下界 / 上界 m | 文件或原因 |",
         "|---:|---|---|---|---|---:|---:|---:|---:|---:|---|---|",

@@ -30,6 +30,7 @@ SOLVERS = {
     "routingblocks": ("electric", ("evrptw",)),
     "hma": ("electric", ("evrptw",)),
     "gurobi": ("milp", ("cvrp", "vrptw", "evrptw")),
+    "lkh": ("lkh", ("cvrp", "vrptw")),
 }
 MODULE = {method: f"adapters.non_learning.{module}" for method, (module, _) in SOLVERS.items()}
 COMBINATIONS = [(method, view) for method, (_, views) in SOLVERS.items() for view in views]

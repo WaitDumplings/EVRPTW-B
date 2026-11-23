@@ -1,0 +1,220 @@
+--- a/SRC/FreeStructures.c
++++ b/SRC/FreeStructures.c
+@@ -22,6 +22,7 @@
+         Free(NodeSet);
+     }
+     Free(CostMatrix);
++    Free(TravelTimeMatrix);
+     Free(BestTour);
+     Free(BetterTour);
+     Free(SwapStack);
+--- a/SRC/INCLUDE/LKH.h
++++ b/SRC/INCLUDE/LKH.h
+@@ -235,6 +235,7 @@
+ extern int CandidateFiles;     /* Number of CANDIDATE_FILEs */
+ extern int EdgeFiles;          /* Number of EDGE_FILEs */
+ extern int *CostMatrix;        /* Cost matrix */
++extern int *TravelTimeMatrix;  /* Optional directed CVRPTW time ticks */
+ extern GainType CurrentGain;
+ extern GainType CurrentPenalty;
+ extern int DemandDimension;    /* Number of commodities in a M-PDTSP instance */
+--- a/SRC/LKH.c
++++ b/SRC/LKH.c
+@@ -32,6 +32,7 @@
+ int CandidateFiles;     /* Number of CANDIDATE_FILEs */
+ int EdgeFiles;          /* Number of EDGE_FILEs */
+ int *CostMatrix;        /* Cost matrix */
++int *TravelTimeMatrix;
+ GainType CurrentGain;
+ GainType CurrentPenalty;
+ int DemandDimension;    /* Number of commodities in a M-PDTSP instance */
+--- a/SRC/Penalty_CVRPTW.c
++++ b/SRC/Penalty_CVRPTW.c
+@@ -1,5 +1,29 @@
+ #include "LKH.h"
+ #include "Segment.h"
++
++static int TravelTime(Node *a, Node *b)
++{
++    Node *lo = a->Id <= DimensionSaved ? a : b;
++    Node *hi = lo == a ? b : a;
++    int i, j;
++    /* Only the structural i <-> i+h pair has zero time here. A required
++       physical arc from FIXED_EDGES_SECTION still uses its directed time. */
++    if (hi->Id - lo->Id == DimensionSaved)
++        return 0;
++    if (lo->Id > DimensionSaved || hi->Id <= DimensionSaved ||
++        (Salesmen > 1 && Forbidden(a, b)))
++        return M;
++    if (lo->DepotId && hi->DepotId)
++        return 0;
++    if (Salesmen > 1 && hi->DepotId && hi->DepotId <= ExternalSalesmen &&
++        lo->Id <= Dim)
++        return 0;
++    /* The physical arc is low i -> high j+h in either traversal direction.
++       Depot copies in either half represent the original depot. */
++    i = lo->DepotId ? Depot->Id : lo->Id;
++    j = hi->DepotId ? Depot->Id : hi->Id - DimensionSaved;
++    return TravelTimeMatrix[(size_t) (i - 1) * Dim + j - 1];
++}
+ 
+ GainType Penalty_CVRPTW()
+ {
+@@ -36,7 +60,10 @@
+                 Size++;
+             }
+             NextN = Forward ? SUCC(N) : PREDD(N);
+-            CostSum += (C(N, NextN) - N->Pi - NextN->Pi) / Precision;
++            if (TravelTimeMatrix)
++                CostSum += TravelTime(N, NextN);
++            else
++                CostSum += (C(N, NextN) - N->Pi - NextN->Pi) / Precision;
+             N = Forward ? SUCC(NextN) : PREDD(NextN);
+         } while (N->DepotId == 0);
+         if (MTSPMinSize >= 1 && Size < MTSPMinSize)
+--- a/SRC/ReadProblem.c
++++ b/SRC/ReadProblem.c
+@@ -1,5 +1,7 @@
+ #include "LKH.h"
+ #include "Heap.h"
++#include <errno.h>
++#include <stdint.h>
+ 
+ /*
+  * The ReadProblem function reads the problem data in TSPLIB format from the
+@@ -278,6 +280,11 @@
+  * belong to the tour). In addition, the Alpha field of its edges is set to
+  * -1.
+  *
++ * TRAVEL_TIME_SECTION :
++ * Optional for CVRPTW. After TYPE and DIMENSION, give one row of directed
++ * nonnegative integer times per original node, including a zero diagonal.
++ * Values are final ticks in the same units as the scaled windows and service.
++ *
+  * BACKHAUL_SECTION :
+  * This section is used for specifying VRPB instances.
+  * It contains a list of backhaul nodes. This list is terminated by a -1.
+@@ -384,6 +391,8 @@
+ static void Read_SERVICE_TIME(void);
+ static void Read_SERVICE_TIME_SECTION(void);
+ static void Read_TIME_WINDOW_SECTION(void);
++static void Read_TRAVEL_TIME_SECTION(void);
++static void CheckTravelTimeBounds(int MaxArc);
+ static void Read_TOUR_SECTION(FILE ** File);
+ static void Read_TYPE(void);
+ static int TwoDWeightType(void);
+@@ -414,6 +423,9 @@
+             continue;
+         for (i = 0; i < (int) strlen(Keyword); i++)
+             Keyword[i] = (char) toupper(Keyword[i]);
++        if (TravelTimeMatrix && (!strcmp(Keyword, "TYPE") ||
++                                 !strcmp(Keyword, "DIMENSION")))
++            eprintf("TYPE and DIMENSION must precede TRAVEL_TIME_SECTION");
+         if (!strcmp(Keyword, "COMMENT"));
+         else if (!strcmp(Keyword, "BACKHAUL_SECTION"))
+             Read_BACKHAUL_SECTION();
+@@ -482,6 +494,8 @@
+             Read_SERVICE_TIME_SECTION();
+         else if (!strcmp(Keyword, "TIME_WINDOW_SECTION"))
+             Read_TIME_WINDOW_SECTION();
++        else if (!strcmp(Keyword, "TRAVEL_TIME_SECTION"))
++            Read_TRAVEL_TIME_SECTION();
+         else if (!strcmp(Keyword, "TOUR_SECTION"))
+             Read_TOUR_SECTION(&ProblemFile);
+         else if (!strcmp(Keyword, "TYPE"))
+@@ -723,16 +737,32 @@
+         ProblemType == CVRPTW || ProblemType == VRPBTW ||
+         ProblemType == PDPTW || ProblemType == RCTVRPTW ||
+         ProblemType == KTSP) {
++        int MaxArc;
+         M = INT_MAX / 2 / Precision;
++        MaxArc = M;
+         for (i = 1; i <= Dim; i++) {
+             Node *Ni = &NodeSet[i];
+             for (j = 1; j <= Dim; j++) {
+                 Node *Nj = &NodeSet[j];
+-                if (Ni != Nj &&
++                if (TravelTimeMatrix) {
++                    int *Time = &TravelTimeMatrix[(size_t) (i - 1) * Dim + j - 1];
++                    if (Ni != Nj &&
++                        Ni->Earliest + Ni->ServiceTime + *Time > Nj->Latest) {
++                        Ni->C[j] = M;
++                        /* Mirror upstream pruning. M is a sentinel, not a
++                           physical time. Never shorten the real travel time. */
++                        if (*Time < M)
++                            *Time = M;
++                    }
++                    if (*Time > MaxArc)
++                        MaxArc = *Time;
++                } else if (Ni != Nj &&
+                     Ni->Earliest + Ni->ServiceTime + Ni->C[j] > Nj->Latest)
+                     Ni->C[j] = M;
+             }
+         }
++        if (TravelTimeMatrix)
++            CheckTravelTimeBounds(MaxArc);
+         if (ProblemType == TSPTW) {
+             for (i = 1; i <= Dim; i++)
+                 for (j = 1; j <= Dim; j++)
+@@ -1904,6 +1934,61 @@
+     }
+ }
+ 
++static void Read_TRAVEL_TIME_SECTION(void)
++{
++    int i, j;
++    if (ProblemType != CVRPTW || Dim < 1 || TravelTimeMatrix)
++        eprintf("TRAVEL_TIME_SECTION requires CVRPTW, DIMENSION and a single table");
++    if ((size_t) Dim > SIZE_MAX / sizeof(int) / (size_t) Dim)
++        eprintf("TRAVEL_TIME_SECTION: table too large");
++    TravelTimeMatrix = malloc((size_t) Dim * Dim * sizeof(int));
++    if (!TravelTimeMatrix)
++        eprintf("TRAVEL_TIME_SECTION: allocation failed");
++    for (i = 0; i < Dim; ++i) {
++        char *p = ReadLine(ProblemFile), *end;
++        if (!p)
++            eprintf("TRAVEL_TIME_SECTION: missing row %d", i + 1);
++        for (j = 0; j < Dim; ++j) {
++            long value;
++            errno = 0;
++            value = strtol(p, &end, 10);
++            if (end == p || errno == ERANGE || value < 0 || value > INT_MAX ||
++                (*end && !isspace((unsigned char) *end)) || (i == j && value))
++                eprintf("TRAVEL_TIME_SECTION: invalid entry (%d,%d)", i + 1, j + 1);
++            TravelTimeMatrix[(size_t) i * Dim + j] = (int) value;
++            p = end;
++        }
++        while (isspace((unsigned char) *p))
++            ++p;
++        if (*p)
++            eprintf("TRAVEL_TIME_SECTION: extra entry in row %d", i + 1);
++    }
++}
++
++static void CheckTravelTimeBounds(int MaxArc)
++{
++    long double window = 0, service = 0, demand = fabsl((long double) Capacity);
++    long double clock, penalty;
++    int i;
++    for (i = 1; i <= Dim; ++i) {
++        Node *N = &NodeSet[i];
++        if (!isfinite(N->Earliest) || !isfinite(N->Latest) ||
++            !isfinite(N->ServiceTime) || N->ServiceTime < 0)
++            eprintf("TRAVEL_TIME_SECTION: invalid window or service at node %d", i);
++        window = fmaxl(window, fmaxl(fabsl(N->Earliest), fabsl(N->Latest)));
++        service += N->ServiceTime;
++        demand += fabsl((long double) N->Demand);
++    }
++    /* A route has at most Dim physical legs. The existing penalty updates
++       mix GainType and double. Bound their exact integer range (also int64). */
++    clock = window + service + (long double) Dim * MaxArc;
++    penalty = ((long double) Dim - 1 + Salesmen) * (clock + window) +
++        (Dim - 1) * demand + (long double) Salesmen *
++        (Dim + fabsl((long double) MTSPMinSize) + fabsl((long double) MTSPMaxSize));
++    if (penalty > 9007199254740991.0L)
++        eprintf("TRAVEL_TIME_SECTION: clock or penalty exceeds exact integer range");
++}
++
+ static void Read_TIME_WINDOW_SECTION()
+ {
+     int Id, i;

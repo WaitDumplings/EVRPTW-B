@@ -1,18 +1,18 @@
 # EVRPTW-B
 
-EVRPTW-B 在同一份 EVRPTW-D Parquet 上运行 CVRP、VRPTW 和 EVRPTW 求解器，并使用原始有向路网矩阵独立验证车辆路线。当前发布准备包含 8 种非学习型求解器配置、12 个已验收的“求解器 × 视图”组合。[Chicago Cus100 验收样例](examples/chicago-cus100/README.md) · [完整精度 CSV](examples/chicago-cus100/summary.csv)
+EVRPTW-B 在同一份 EVRPTW-D Parquet 上运行 CVRP、VRPTW 和 EVRPTW 求解器，并使用原始有向路网矩阵独立验证车辆路线。求解器登记表包含 9 种非学习型配置。已发布的 Chicago 样例覆盖早先验收的 12 个“求解器 × 视图”组合。[Chicago Cus100 验收样例](examples/chicago-cus100/README.md) · [完整精度 CSV](examples/chicago-cus100/summary.csv)
 
 | 视图 | 非学习型方法 |
 |---|---|
-| CVRP | OR-Tools GLS、HGS-CVRP、PyVRP-ILS、Gurobi |
-| VRPTW | OR-Tools GLS、PyVRP-ILS、PyVRP-HGS、Gurobi |
+| CVRP | OR-Tools GLS、HGS-CVRP、PyVRP-ILS、Gurobi、LKH-3 |
+| VRPTW | OR-Tools GLS、PyVRP-ILS、PyVRP-HGS、Gurobi、LKH-3（独立时间矩阵） |
 | EVRPTW | VNS/TS、RoutingBlocks ALNS、HMA、Gurobi |
 
 ## 代码入口
 
 - [求解器实现](adapters/non_learning/)包含经典车辆路径方法、电动车启发式和 Gurobi 模型。环境准备、原生编译和充电探针位于 [adapters/](adapters/)。
 - [bench.py](bench.py) 负责单例和多例执行，[runtime.py](runtime.py) 登记方法与视图，[worker.py](worker.py) 控制求解进程和候选路线导出。
-- [replay.py](replay.py) 在原始矩阵上独立回放，[summarize.py](summarize.py) 从完整本地运行生成 12 行验收表。
+- [replay.py](replay.py) 在原始矩阵上独立回放，[summarize.py](summarize.py) 从本地运行生成验收表。
 - [CPU 接入任务书](EVRPTW-B_CPU_SOLVER_HANDOFF.zh-CN.md)记录各方法的上游来源、视图和验收要求。
 
 ## 准备运行环境
@@ -56,6 +56,8 @@ VNS/TS 和 Gurobi 的组内源码默认通过 SSH 获取，RoutingBlocks、HMA �
 Gurobi 验收使用 `gurobipy==13.0.2` 和本机 `maojie` 环境的有效许可。在另一台机器上，可用 `EVB_PYTHON_GUROBI` 指向已安装 Gurobi、NumPy、PyArrow 且具有相应规模许可的解释器。其余方法的解释器选择见 [runtime.py](runtime.py)。
 
 各方法使用的作者仓库见 [CPU 接入任务书](EVRPTW-B_CPU_SOLVER_HANDOFF.zh-CN.md)。RoutingBlocks 和 HMA 的上游来源、固定提交及许可说明见[道路适配仓库的第三方声明](https://github.com/WaitDumplings/Benchmark/blob/bd94474c551b39ac90e98a25a2cc43cb919f81b8/THIRD_PARTY_NOTICES.md)。
+
+LKH-3 使用独立准备脚本。CVRP 调用 3.0.10 原版，VRPTW 调用支持独立行驶时间矩阵的补丁版。[构建、第三方许可与来源记录](adapters/CLASSICAL.zh-CN.md#lkh-3)
 
 ## 本次输入
 
@@ -105,7 +107,7 @@ args=(--input "$INPUT" --expect-id "$ID" --expect-sha256 "$SHA" --seconds 60 --t
 
 ## 正式 Test1 评测
 
-Chicago 和 Houston 的 Test1 共 300 例。本轮在 CVRP 视图上依次运行 OR-Tools、HGS-CVRP、PyVRP-ILS 和 Gurobi，共 1,200 个求解任务。每个任务运行一次，预算为 30 分钟，记录第 1、5、15、30 分钟的最好可行解。
+Chicago 和 Houston 的 Test1 共 300 例。下列命令按登记顺序运行 OR-Tools、HGS-CVRP、PyVRP-ILS、Gurobi 和 LKH，共 1,500 个 CVRP 求解任务。每个任务运行一次，预算为 30 分钟，记录第 1、5、15、30 分钟的最好可行解。
 
 ```bash
 "$PY" scripts/run_test1.py --data-root ../city-v2-output --out ../test1-cvrp --view cvrp --plan-only
