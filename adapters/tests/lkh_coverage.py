@@ -13,9 +13,11 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 ARCHIVE_SHA = "c7432409e359f4b712983be8670b351b20875de1be93d7b1a074c45e1744f910"
-PATCH_SHA = "97f05de56cd147eff4d149c78129ad55431d62a1c34339fdab6643102178a0fd"
+PATCH_SHA = "0472cec9a8036f9b17e3d93a43025150c99732839e88397b09ed2eae3ff902a4"
 FIELDS = ("forward_steps", "reverse_steps", "depot_copy_lookups", "empty_route_steps",
-          "pruned_lookups", "pruned_ge_m_lookups", "unpruned_m_lookups")
+          "pruned_lookups", "pruned_ge_m_lookups", "unpruned_m_lookups",
+          "high_copy_returns", "low_copy_departures", "forward_adjacent_nonempty",
+          "reverse_adjacent_nonempty")
 M = 10737418
 
 
@@ -37,7 +39,7 @@ def edit(path, before, after):
 
 def instrument(src):
     """Only the temporary instrumentation executable sees these counters and probe."""
-    header = '\nextern unsigned long long Coverage[7];\nextern unsigned char *PrunedTime;\n'
+    header = f'\nextern unsigned long long Coverage[{len(FIELDS)}];\nextern unsigned char *PrunedTime;\nextern int TraceDepot;\n'
     read = src / "ReadProblem.c"
     edit(read, '#include <errno.h>', '#include <errno.h>' + header)
     old = '    TravelTimeMatrix = malloc((size_t) Dim * Dim * sizeof(int));'
@@ -48,12 +50,41 @@ def instrument(src):
          '                            *Time >= M ? 2 : 1;\n' + old)
     penalty = src / "Penalty_CVRPTW.c"
     edit(penalty, '#include "Segment.h"', '#include "Segment.h"' + header)
+    edit(penalty, 'TravelTime(Node *a, Node *b)',
+         'TravelTime(Node *a, Node *b, int Forward, int *previousReturn)')
+    # Keep adjacency local to one penalty invocation. Every leg consumes the
+    # preceding leg, even if this one returns early (e.g. an empty route).
+    edit(penalty, '    int i, j;', '''    int i, j;
+    int returningCopy = *previousReturn;
+    *previousReturn = 0;''')
+    edit(penalty, '    static Node *StartRoute = 0;',
+         '    static Node *StartRoute = 0;\n    int previousReturn = 0;')
     old = '    if (lo->DepotId && hi->DepotId)\n        return 0;'
     edit(penalty, old, '    if (lo->DepotId && hi->DepotId) {\n'
          '        ++Coverage[3];\n        return 0;\n    }')
     old = '    return TravelTimeMatrix[(size_t) (i - 1) * Dim + j - 1];'
     edit(penalty, old, '''    size_t index = (size_t) (i - 1) * Dim + j - 1;
     int ticks = TravelTimeMatrix[index];
+    if (hi->Id - DimensionSaved > Dim && hi->DepotId && !lo->DepotId) {
+        if (j != Depot->Id || i != lo->Id)
+            eprintf("wrong time-table return arc");
+        ++Coverage[7];
+        *previousReturn = hi->Id - DimensionSaved;
+        if (TraceDepot)
+            printf("EVB_RETURN forward=%d customer=%d upper_copy=%d depot_id=%d mapped_to=%d\\n",
+                   Forward, i, hi->Id, hi->DepotId, j);
+    }
+    if (lo->Id > Dim && lo->DepotId && !hi->DepotId) {
+        if (i != Depot->Id || j != hi->Id - DimensionSaved)
+            eprintf("wrong time-table departure arc");
+        ++Coverage[8];
+        if (returningCopy == lo->Id) {
+            ++Coverage[Forward ? 9 : 10];
+            if (TraceDepot)
+                printf("EVB_NEXT forward=%d lower_copy=%d depot_id=%d mapped_from=%d customer=%d\\n",
+                       Forward, lo->Id, lo->DepotId, i, j);
+        }
+    }
     if (lo->Id > Dim || hi->Id - DimensionSaved > Dim)
         ++Coverage[2];
     if (PrunedTime[index]) {
@@ -67,16 +98,18 @@ def instrument(src):
     old = '            if (TravelTimeMatrix)\n                CostSum += TravelTime(N, NextN);'
     edit(penalty, old, '            if (TravelTimeMatrix) {\n'
          '                ++Coverage[Forward ? 0 : 1];\n'
-         '                CostSum += TravelTime(N, NextN);\n            }')
+         '                CostSum += TravelTime(N, NextN, Forward, &previousReturn);\n            }')
     main = src / "LKHmain.c"
     old = 'int main(int argc, char * argv[])'
-    edit(main, old, '''unsigned long long Coverage[7];
+    declarations = f'unsigned long long Coverage[{len(FIELDS)}];\n'
+    edit(main, old, declarations + '''
 unsigned char *PrunedTime;
+int TraceDepot;
 
 static void CoverageReport(void)
 {
     printf("EVB_COVERAGE");
-    for (int i = 0; i < 7; ++i)
+    for (size_t i = 0; i < sizeof(Coverage) / sizeof(Coverage[0]); ++i)
         printf(" %llu", Coverage[i]);
     putchar('\\n');
 }
@@ -85,12 +118,17 @@ static void CoverageReport(void)
    internal orientations. Call the real, patched penalty after ReadProblem. */
 static void CoverageProbe(void)
 {
-    const int tour[] = {1, 5, 2, 3, 4};
-    if (Dim != 4 || DimensionSaved != 5 || Salesmen != 2)
+    const int withPrunedArcs[] = {1, 5, 2, 3, 4};
+    const int withAdjacentRoutes[] = {1, 2, 5, 3, 4, 6};
+    const int withThreeOccupied[] = {1, 2, 5, 3, 6, 4, 7};
+    if (Dim != 4 || Salesmen < 2 || Salesmen > 4 || DimensionSaved != Dim + Salesmen - 1)
         eprintf("unexpected coverage probe dimensions");
-    for (int m = 0; m < 5; ++m) {
+    const int *fixtures[] = {withPrunedArcs, withAdjacentRoutes, withThreeOccupied};
+    const int *tour = fixtures[Salesmen - 2];
+    TraceDepot = Salesmen >= 3;
+    for (int m = 0; m < DimensionSaved; ++m) {
         Node *from = &NodeSet[tour[m]];
-        Node *to = &NodeSet[tour[(m + 1) % 5]];
+        Node *to = &NodeSet[tour[(m + 1) % DimensionSaved]];
         Node *upper = to + DimensionSaved;
         from->Suc = upper;
         upper->Pred = from;
@@ -145,7 +183,7 @@ def run(exe, dest, par, cpu, *, probe=False):
         subprocess.run(["taskset", "-c", str(cpu), str(exe), par], env=env, cwd=dest,
                        stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=True)
     text = (dest / "solver.log").read_text()
-    matches = re.findall(r"^EVB_COVERAGE((?: \d+){7})$", text, re.M)
+    matches = re.findall(rf"^EVB_COVERAGE((?: \d+){{{len(FIELDS)}}})$", text, re.M)
     require(len(matches) == 1, f"missing coverage record in {dest}")
     return dict(zip(FIELDS, map(int, matches[0].split())))
 
@@ -223,11 +261,84 @@ EOF
 """)
     (dest / "probe.par").write_text("PROBLEM_FILE = probe.vrp\nMTSP_MIN_SIZE = 0\nSEED = 20261103\n")
     counts = run(exe, dest, "probe.par", cpu, probe=True)
-    expected = dict(zip(FIELDS, (5, 5, 2, 2, 4, 2, 2)))
+    expected = dict(zip(FIELDS, (5, 5, 2, 2, 4, 2, 2, 0, 2, 0, 0), strict=True))
     require(counts == expected, f"probe counts {counts} differ from expected {expected}")
     raw = (dest / "solver.log").read_text()
     penalties = re.findall(r"^EVB_PROBE orientation=(\d+) penalty=(\d+)$", raw, re.M)
     require(penalties == [(str(i), str(3 * M - 4)) for i in range(2)], f"probe penalty: {penalties}")
+    return counts
+
+
+def adjacent_routes(exe, out, cpu, *, three_occupied=False):
+    """Trace each return and departure in two or three occupied routes, plus an empty route."""
+    name = "three-occupied-routes" if three_occupied else "adjacent-routes"
+    vehicles = 4 if three_occupied else 3
+    dest = out / name
+    dest.mkdir()
+    (dest / "probe.vrp").write_text(f"""NAME: coverage-{name}
+TYPE: CVRPTW
+DIMENSION: 4
+VEHICLES: {vehicles}
+CAPACITY: 10
+EDGE_WEIGHT_TYPE: EXPLICIT
+EDGE_WEIGHT_FORMAT: FULL_MATRIX
+EDGE_WEIGHT_SECTION
+0 1 2 3
+4 0 5 6
+7 8 0 9
+10 11 12 0
+DEMAND_SECTION
+1 0
+2 1
+3 1
+4 1
+DEPOT_SECTION
+1
+-1
+TRAVEL_TIME_SECTION
+0 5 6 7
+8 0 9 10
+11 12 0 13
+14 15 16 0
+TIME_WINDOW_SECTION
+1 0 100
+2 0 100
+3 0 100
+4 0 100
+EOF
+""")
+    (dest / "probe.par").write_text("PROBLEM_FILE = probe.vrp\nMTSP_MIN_SIZE = 0\nSEED = 20261103\n")
+    counts = run(exe, dest, "probe.par", cpu, probe=True)
+    # Ring 1,2,5,3,4,6: customers [2], [3,4], []. Both 5 and 6
+    # receive returns, but only 5 starts a nonempty route immediately.
+    # Ring 1,2,5,3,6,4,7: customers [2], [3], [4], []. Each of the
+    # two traversals includes the consecutive route boundaries at copies 5 and 6.
+    totals = ((7, 7, 10, 2, 0, 0, 0, 6, 4, 2, 2) if three_occupied
+              else (6, 6, 6, 2, 0, 0, 0, 4, 2, 1, 1))
+    expected = dict(zip(FIELDS, totals, strict=True))
+    require(counts == expected, f"adjacent-route counts {counts} differ from {expected}")
+    events = [line for line in (dest / "solver.log").read_text().splitlines()
+              if line.startswith(("EVB_RETURN ", "EVB_NEXT ", "EVB_PROBE "))]
+    expected_events = []
+    for orientation in (0, 1):
+        forward = 1 - orientation
+        # Explicit expected IDs are independent of the C loop that creates the tour.
+        if three_occupied:
+            expected_events.extend([
+                f"EVB_RETURN forward={forward} customer=2 upper_copy=12 depot_id=2 mapped_to=1",
+                f"EVB_NEXT forward={forward} lower_copy=5 depot_id=2 mapped_from=1 customer=3",
+                f"EVB_RETURN forward={forward} customer=3 upper_copy=13 depot_id=3 mapped_to=1",
+                f"EVB_NEXT forward={forward} lower_copy=6 depot_id=3 mapped_from=1 customer=4",
+                f"EVB_RETURN forward={forward} customer=4 upper_copy=14 depot_id=4 mapped_to=1",
+            ])
+        else:
+            expected_events.extend([
+                f"EVB_RETURN forward={forward} customer=2 upper_copy=11 depot_id=2 mapped_to=1",
+                f"EVB_NEXT forward={forward} lower_copy=5 depot_id=2 mapped_from=1 customer=3",
+                f"EVB_RETURN forward={forward} customer=4 upper_copy=12 depot_id=3 mapped_to=1",
+            ])
+        expected_events.append(f"EVB_PROBE orientation={orientation} penalty=0")
+    require(events == expected_events, f"adjacent-route endpoint trace differs: {events}")
     return counts
 
 
@@ -243,8 +354,10 @@ def main():
     require(formal["status"] == "pass", "formal best-tour comparison did not pass")
     binaries = Path(os.environ.get("EVB_DEPS", ROOT / ".deps")) / "lkh-3.0.10/bin"
     production = {name: sha(binaries / name) for name in ("LKH", "LKH-vrptw-time")}
-    require(production == json.loads((binaries / "preparation.json").read_text())["binaries_sha256"],
-            "production binary differs from its receipt")
+    receipt = json.loads((binaries / "preparation.json").read_text())
+    require(receipt["inputs"]["patch_sha256"] == PATCH_SHA and
+            production == receipt["binaries_sha256"] == formal["binary_sha256"],
+            "formal trials and coverage must use the same verified patch and binaries")
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     with tempfile.TemporaryDirectory(dir="/tmp", prefix="evb-lkh-coverage-") as tmp:
@@ -253,15 +366,19 @@ def main():
         for name in ("C101", "R101", "RC101", "directed-empty"):
             solver_counts[name] = natural(exe, formal_dir / name / "equal", out, name, args.cpu)
         known = probe(exe, out, args.cpu)
+        adjacent = adjacent_routes(exe, out, args.cpu)
+        three_occupied = adjacent_routes(exe, out, args.cpu, three_occupied=True)
         data = {"archive_sha256": ARCHIVE_SHA, "patch_sha256": PATCH_SHA,
                 "instrumented_binary_sha256": sha(exe), "cpu": args.cpu,
-                "solver_cases": solver_counts, "known_circuit": known}
+                "solver_cases": solver_counts, "known_circuit": known, "adjacent_routes": adjacent,
+                "three_occupied_routes": three_occupied}
     require(production == {name: sha(binaries / name) for name in production},
             "production binary changed during coverage")
     data["production_sha256_before_and_after"] = production
     totals = {key: sum(c[key] for c in solver_counts.values()) for key in FIELDS}
     data["solver_totals"] = totals
-    data["combined_totals"] = {k: v + known[k] for k, v in totals.items()}
+    data["combined_totals"] = {k: v + known[k] + adjacent[k] + three_occupied[k]
+                               for k, v in totals.items()}
     require(all(data["combined_totals"][key] > 0 for key in FIELDS[:5]), "unexecuted required branch")
     report = out / "coverage.json"
     report.write_text(json.dumps(data, indent=2) + "\n")

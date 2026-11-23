@@ -49,7 +49,7 @@ HGS 通过作者的 `solve_cvrp_dist_mtx` 接收按行存放的有向 double 矩
 | `lkh/cvrp` | Keld Helsgaun 的 LKH-3.0.10 原版，题型 `ACVRP` | `.deps/lkh-3.0.10/bin/LKH` |
 | `lkh/vrptw` | **B 级**。在同一发行版上增加独立的有向行驶时间输入，题型 `CVRPTW` | `.deps/lkh-3.0.10/bin/LKH-vrptw-time` |
 
-作者保留代码权利，LKH-3 仅供学术及非商业使用。准备脚本校验原始发行包的 SHA-256 `c7432409e359f4b712983be8670b351b20875de1be93d7b1a074c45e1744f910`，分别编译原版和补丁版，并记录构建用时和校验值。补丁 SHA-256 为 `97f05de56cd147eff4d149c78129ad55431d62a1c34339fdab6643102178a0fd`。构建需要 C 编译器、GNU make 和 patch；运行需要 Linux、GNU time (`/usr/bin/time`) 及 GNU coreutils 的 `timeout`。[作者发布页存档](https://web.archive.org/web/20240630232626id_/http://webhotel4.ruc.dk/~keld/research/LKH-3/) · [作者发行包](http://akira.ruc.dk/~keld/research/LKH-3/LKH-3.0.10.tgz) · [时间矩阵补丁](patches/lkh-3.0.10-vrptw-time.patch)
+作者保留代码权利，LKH-3 仅供学术及非商业使用。准备脚本校验原始发行包的 SHA-256 `c7432409e359f4b712983be8670b351b20875de1be93d7b1a074c45e1744f910`，分别编译原版和补丁版，并记录构建用时和校验值。补丁 SHA-256 为 `0472cec9a8036f9b17e3d93a43025150c99732839e88397b09ed2eae3ff902a4`。构建需要 C 编译器、GNU make 和 patch；运行需要 Linux、GNU time (`/usr/bin/time`) 及 GNU coreutils 的 `timeout`。[作者发布页存档](https://web.archive.org/web/20240630232626id_/http://webhotel4.ruc.dk/~keld/research/LKH-3/) · [作者发行包](http://akira.ruc.dk/~keld/research/LKH-3/LKH-3.0.10.tgz) · [时间矩阵补丁](patches/lkh-3.0.10-vrptw-time.patch)
 
 ```bash
 "$PY" adapters/prepare_lkh.py
@@ -60,5 +60,7 @@ HGS 通过作者的 `solve_cvrp_dist_mtx` 接收按行存放的有向 double 矩
 两个视图都按有向距离计价，输入距离单位为分米。车辆上限取按容量装箱得到的车数加 2，允许空路线。这个上限保证所用装箱方案在容量上可容纳；时间窗可能要求更多车辆。试验级和运行级的路线文件在搜索过程中交给公共事件流，最终距离、用车数和可行性使用原始矩阵独立回放。输入转换、启动子进程和提取路线计入墙钟预算。
 
 `TRAVEL_TIME_SECTION` 按含仓库的原始维度逐行列出有向整数时间。适配器默认使用毫秒，对行驶、服务和窗开始向上取整，对窗结束向下取整，仓库班次采用相同规则。时间刻度和成本精度分别记录。时间窗预处理按实际行驶时间识别必迟弧，并沿用上游对被剪弧的处理。其搜索成本记为 `M`，有效时间记为 `max(M, 原行驶时间)`。`M` 是剪弧哨兵；路线的物理行驶时间由公共回放读取。搜索继续以罚值、总距离的顺序比较路线。
+
+上游 LKH-3.0.10 的 `SRC/ReadProblem.c` 第 673–679 行给非对称变换两半中的仓库副本设置相同的非零 `DepotId`。罚函数按物理有向弧将这些副本映射回原仓库。正式补丁在每次读取时间矩阵前检查行、列索引都在 `1..Dim` 内。越界时，`eprintf` 报告映射值、原始维度以及两个端点各自的 `Id` 和 `DepotId`，随后终止求解。
 
 LKH 参数文件指定 `PROBLEM_FILE`、`RUNS=1000000`、`SEED`、`MTSP_MIN_SIZE=0`、`TOTAL_TIME_LIMIT`、`OUTPUT_TOUR_FILE=trial-$.tour` 和 `TOUR_FILE=run-$.tour`。`VEHICLES` 在问题文件中给出。最大试验次数、移动类型、候选集和边成本的 `PRECISION` 沿用原版默认值。`TOTAL_TIME_LIMIT` 取自 `ctx.remaining()`；父进程对完整任务使用墙钟截止。

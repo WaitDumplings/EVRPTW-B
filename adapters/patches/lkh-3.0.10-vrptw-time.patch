@@ -30,7 +30,7 @@
  int DemandDimension;    /* Number of commodities in a M-PDTSP instance */
 --- a/SRC/Penalty_CVRPTW.c
 +++ b/SRC/Penalty_CVRPTW.c
-@@ -1,5 +1,29 @@
+@@ -1,5 +1,33 @@
  #include "LKH.h"
  #include "Segment.h"
 +
@@ -55,12 +55,16 @@
 +       Depot copies in either half represent the original depot. */
 +    i = lo->DepotId ? Depot->Id : lo->Id;
 +    j = hi->DepotId ? Depot->Id : hi->Id - DimensionSaved;
++    if (i < 1 || i > Dim || j < 1 || j > Dim)
++        eprintf("TravelTime: mapped arc (%d,%d) outside 1..%d "
++                "(a: Id=%d DepotId=%d, b: Id=%d DepotId=%d)",
++                i, j, Dim, a->Id, a->DepotId, b->Id, b->DepotId);
 +    return TravelTimeMatrix[(size_t) (i - 1) * Dim + j - 1];
 +}
  
  GainType Penalty_CVRPTW()
  {
-@@ -36,7 +60,10 @@
+@@ -36,7 +64,10 @@
                  Size++;
              }
              NextN = Forward ? SUCC(N) : PREDD(N);
