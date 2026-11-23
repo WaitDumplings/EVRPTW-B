@@ -8,8 +8,11 @@
 g++ -std=c++17 -O2 -o vns_ts vns_ts.cpp
 ./vns_ts INPUT --events events.jsonl --seed 20261103 --granular 30 --init-time-check 0 --budget 60
 ./vns_ts INPUT --events events.jsonl --seed 20261103 --granular 30 --init-time-check 0 --deadline-monotonic <CLOCK_MONOTONIC 秒>
+./vns_ts INPUT --construct-only --seed 20261103 --granular 30 --init-time-check 0
 ./vns_ts INPUT --probe <站点编号>     # 输出：弧耗电 kWh、充电秒数、离站可用电量 kWh
 ```
+
+`--construct-only` 紧跟输入路径。该模式执行一次原始构造，向标准输出写入 `routes` 和 `construction_s`，随即退出。[正式任务的事后初始解记录](../../docs/initial-solutions.zh-CN.md)
 
 ## 命令行参数与编译期常量
 

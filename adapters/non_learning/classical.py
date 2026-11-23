@@ -28,15 +28,15 @@ def _integers(task):
     return data
 
 
-def _ortools(task, ctx):
-    from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+def _ortools_model(task, seed):
+    from ortools.constraint_solver import pywrapcp
 
     a = _integers(task)
     n = task.nodes.num_rows
     vehicles = n - 1
     manager = pywrapcp.RoutingIndexManager(n, vehicles, 0)
     routing = pywrapcp.RoutingModel(manager)
-    routing.solver().ReSeed(ctx.seed)
+    routing.solver().ReSeed(seed)
     distance = routing.RegisterTransitMatrix(a["distance"].tolist())
     routing.SetArcCostEvaluatorOfAllVehicles(distance)
     loads = routing.RegisterUnaryTransitVector(a["demand"].tolist())
@@ -64,6 +64,23 @@ def _ortools(task, ctx):
                 routes.append([*route, 0])
         return routes
 
+    return routing, routes_at
+
+
+def _ortools_parameters(seed):
+    from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+
+    params = pywrapcp.DefaultRoutingSearchParameters()
+    params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION
+    params.sat_parameters.num_workers = 1
+    params.sat_parameters.random_seed = seed
+    return params
+
+
+def _ortools(task, ctx):
+    from ortools.constraint_solver import routing_enums_pb2
+
+    routing, routes_at = _ortools_model(task, ctx.seed)
     lowest = math.inf
 
     def at_solution():
@@ -74,11 +91,8 @@ def _ortools(task, ctx):
             lowest = cost
 
     routing.AddAtSolutionCallback(at_solution)
-    params = pywrapcp.DefaultRoutingSearchParameters()
-    params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION
+    params = _ortools_parameters(ctx.seed)
     params.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
-    params.sat_parameters.num_workers = 1
-    params.sat_parameters.random_seed = ctx.seed
     ctx.info(version=version("ortools"), algorithm="Routing Solver GLS", **_scales(task))
     ms = int((ctx.remaining() - 0.08) * 1000)
     if ms <= 0:

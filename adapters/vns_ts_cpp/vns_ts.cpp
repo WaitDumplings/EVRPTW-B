@@ -4,6 +4,7 @@
 //
 // Usage: vns_ts INPUT --events FILE [--seed S] [--budget SECONDS | --deadline-monotonic T]
 //               [--granular K] [--eta-tabu N] [--eta-dist N] [--eta-feas N] [--init-time-check 0|1]
+//        vns_ts INPUT --construct-only [options]   prints the first raw construction and its time
 //        vns_ts INPUT --probe STATION      prints: energy_kwh charge_seconds usable_kwh_on_departure
 //                                          for the arc depot -> STATION, using the search evaluator's rules
 #include <algorithm>
@@ -573,7 +574,8 @@ struct Solver {
 int main(int argc, char** argv) {
     if (argc < 2) { cerr << "usage: vns_ts INPUT --events FILE [options]\n"; return 2; }
     string input = argv[1], events; uint64_t seed = 1; double budget = 60, deadline = -1; Params P; int probe = -1;
-    for (int a = 2; a + 1 < argc; a += 2) {
+    const bool construct_only = argc > 2 && string(argv[2]) == "--construct-only";
+    for (int a = construct_only ? 3 : 2; a + 1 < argc; a += 2) {
         string k = argv[a], v = argv[a + 1];
         if (k == "--events") {
             events = v;
@@ -600,6 +602,23 @@ int main(int argc, char** argv) {
         return 0;
     }
     Solver S(I, P, seed, deadline, events, started);
+    if (construct_only) {
+        // build_generators() neither draws from rng nor supplies input to initial().
+        const double begin = now_s();
+        S.initial();
+        const double elapsed = now_s() - begin;
+        printf("{\"construction_s\":%.17g,\"routes\":[", elapsed);
+        bool first = true;
+        for (const auto& route : S.R) {
+            if (route.empty()) continue;  // unused vehicle slot
+            printf("%s[0", first ? "" : ",");
+            for (int node : route) printf(",%d", node);
+            printf(",0]");
+            first = false;
+        }
+        puts("]}");
+        return 0;
+    }
     S.solve();
     printf("{\"best_distance_km\":%s,\"runs\":%ld,\"vns_iterations\":%ld,\"ts_iterations\":%ld,\"evaluations\":%ld,\"wall_s\":%.3f}\n",
            S.best_feas < 1e299 ? to_string(S.best_feas).c_str() : "null", S.restarts, S.vns_iters, S.iter, S.evals,

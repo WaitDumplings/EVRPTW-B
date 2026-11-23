@@ -15,6 +15,16 @@ EVRPTW-B 在同一份 EVRPTW-D Parquet 上运行 CVRP、VRPTW 和 EVRPTW 求解�
 - [replay.py](replay.py) 在原始矩阵上独立回放，[summarize.py](summarize.py) 从本地运行生成验收表。
 - [CPU 接入任务书](EVRPTW-B_CPU_SOLVER_HANDOFF.zh-CN.md)记录各方法的上游来源、视图和验收要求。
 
+## 公开测试划分的正式入口
+
+`scripts/run_formal.py` 读取公开版索引，安排 test1、xs 和 test2，可按城市、规模内的 test2 序号和并发核数选择范围。此命令将完整计划写到标准输出。
+
+```bash
+"$PY" scripts/run_formal.py --data-root "$PUBLIC_RELEASE" --plan-only
+```
+
+正式入口在每个实例的全部计时任务结束后，在独占物理核上另起进程记录 OR-Tools GLS、VNS/TS 和 RoutingBlocks 的原始构造。新检出须用当前版本重新编译 VNS/TS。每个适用任务产生单独的 `initial_solution.json`。汇总命令为 `"$PY" scripts/report_initial.py --out "$OUT"`。[正式调度和续跑](docs/formal-run.zh-CN.md) · [初始解字段和统计口径](docs/initial-solutions.zh-CN.md)
+
 ## 准备运行环境
 
 从 EVRPTW-B 仓库根目录运行。本机已有固定提交的读取器和运行环境，可直接选择它们。

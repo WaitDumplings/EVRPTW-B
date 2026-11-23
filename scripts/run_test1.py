@@ -48,7 +48,7 @@ def read_inputs(root, cities):
     return sorted(records, key=lambda r: (r["slot"], r["n"], r["city"]))
 
 
-def completed(out, row, method, cfg):
+def completed_attempt(out, row, method, cfg):
     view = cfg["view"]
     i = COMBINATIONS.index((method, view)) + 1
     folder = out / row["instance_id"] / f"{i:02d}-{method}-{view}"
@@ -82,8 +82,13 @@ def completed(out, row, method, cfg):
                 continue
             if recorded_times != r["checkpoint_times_s"]:
                 continue
-        return status
+        return file.parent, status
     return None
+
+
+def completed(out, row, method, cfg):
+    attempt = completed_attempt(out, row, method, cfg)
+    return attempt[1] if attempt else None
 
 
 def register_methods(out, view, methods):
