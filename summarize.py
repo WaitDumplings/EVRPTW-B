@@ -2,6 +2,7 @@
 import argparse
 import csv
 import json
+import math
 from pathlib import Path
 
 from runtime import COMBINATIONS
@@ -23,8 +24,8 @@ def record(base, ordinal, method, view):
         raise ValueError(f"missing actual run for {method}/{view}")
     file = attempts[-1]
     r = json.loads(file.read_text())
-    if (r["instance_id"], r["method"], r["view"], r["seconds"], r["threads"]) != (
-            base.name, method, view, 60, 1):
+    settings = r["instance_id"], r["method"], r["view"], r["threads"]
+    if settings != (base.name, method, view, 1) or not math.isfinite(r["seconds"]) or r["seconds"] <= 0:
         raise ValueError(f"wrong run settings in {file}")
 
     def artifact(name):
@@ -34,7 +35,8 @@ def record(base, ordinal, method, view):
     meta = r.get("adapter", {})
     version = meta.get("version") or meta.get("solver_version") or meta.get("source_commit")
     return dict(order=ordinal, method=method, version=version, view=view, status=r["status"],
-                wall_s=r.get("wall_s"), first_feasible_s=r.get("first_feasible_s"),
+                time_limit_s=r["seconds"], wall_s=r.get("wall_s"), model_build_s=r.get("model_build_s"),
+                first_feasible_s=r.get("first_feasible_s"),
                 best_s=r.get("best_s"), distance_m=r.get("distance_m"), vehicles=r.get("vehicles"),
                 charging_visits=r.get("charging_visits"), lower_bound_m=meta.get("lower_bound_m"),
                 upper_bound_m=meta.get("upper_bound_m"), bound_scope=meta.get("bound_scope"),
@@ -75,8 +77,8 @@ def main():
         if method == "lkh" and not (base / f"{i:02d}-{method}-{view}").exists():
             continue
         records.append(record(base, i, method, view))
-    if len({(r["input_sha256"], r["seed"]) for r in records}) != 1:
-        raise ValueError("runs used different inputs or seeds")
+    if len({(r["input_sha256"], r["seed"], r["time_limit_s"]) for r in records}) != 1:
+        raise ValueError("runs used different inputs, seeds or time budgets")
     with (base / "summary.csv").open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=records[0])
         writer.writeheader()
@@ -85,14 +87,14 @@ def main():
     intro = [
         "# Chicago Cus100 单例验收", "",
         f"通过 {count}/{len(records)}。实例 `{base.name}`，SHA-256 `{records[0]['input_sha256']}`。"
-        f"每项 1 个物理核、1 个求解线程、60 秒墙钟上限，seed 为 `{records[0]['seed']}`。", "",
+        f"每项 1 个物理核、1 个求解线程、{records[0]['time_limit_s']:g} 秒墙钟上限，seed 为 `{records[0]['seed']}`。", "",
         "| 序号 | 求解器 | 版本 / 提交 | 视图 | 状态 | 墙钟秒 | 首个可行秒 | 回放距离 m | 车辆 | 访站 | Gurobi 终态、适用模型、下界 / 上界 m | 文件或原因 |",
         "|---:|---|---|---|---|---:|---:|---:|---:|---:|---|---|",
     ]
-    notes = ["", "墙钟包含适配、建模、初始化和搜索。独立回放及充电探针另行计时。"
-             "零访站表示所选路线未经过充电站；探针使用同一实例中的有向弧和实际站点。"
-             "Gurobi EV 模型的两个副本由全车队共用，表中 EV 下界仅适用于这个限制。"
-             "所有通过路线的上界均由原始浮点矩阵回放确认。", "",
+    notes = ["", "启发式墙钟包括适配、初始化和搜索。Gurobi 的建模耗时见 CSV 中的 model_build_s。"
+             "有建模耗时记录的运行从建模完成后计时，早期协议将建模计入预算。"
+             "路线距离由公共评测器在预算结束后独立回放，充电探针另行计时。"
+             "Gurobi EV 模型的两个副本由全车队共用，表中 EV 界适用于这个限制。", "",
              "[完整精度 CSV](summary.csv)"]
     (base / "summary.md").write_text("\n".join([*intro, *map(markdown_row, records), *notes]) + "\n")
     print(base / "summary.csv")

@@ -15,7 +15,11 @@ from replay import InvalidRoute, evaluate
 from runtime import (COMBINATIONS, DEFAULT_SEED, ROOT, cpu_topology, file_hash, interpreter,
                      load_view, one_thread_env, write_json)
 
-CHECKPOINTS = (60, 300, 900, 1800)
+CHECKPOINTS = (60, 300, 600, 900, 1200, 1500, 1800)
+
+
+def checkpoint_times(seconds):
+    return sorted({t for t in CHECKPOINTS if t <= seconds} | {seconds})
 
 
 def attempt_directory(root):
@@ -51,9 +55,16 @@ def launch(command, out, seconds):
                                     env=one_thread_env(), stdout=log, stderr=subprocess.STDOUT)
             os.close(ready_w); ready_w = -1
             os.close(go_r); go_r = -1
-            # The common reader runs before the method budget. EOF reports a failed child.
-            if os.read(ready, 1) != b"R":
-                raise RuntimeError("worker could not load the common input (see solver.log)")
+            with os.fdopen(ready, closefd=False) as channel:
+                message = channel.readline()
+            if not message:
+                raise RuntimeError("worker exited during preparation (see solver.log)")
+            receipt = json.loads(message)
+            if "exception" in receipt:
+                reason = receipt["reason"].lower()
+                status = "license_blocked" if "license" in reason or "licence" in reason else "setup_error"
+                return dict(**receipt, status=status, returncode=proc.wait(),
+                            bootstrap_s=time.monotonic() - bootstrap)
             start = time.monotonic()
             os.write(go, f"{start!r}\n".encode())
             os.close(go); go = -1
@@ -64,7 +75,7 @@ def launch(command, out, seconds):
                 kill_group(proc.pid)
                 proc.wait()
             observed = time.monotonic() - start
-        return dict(start_monotonic=start, bootstrap_s=start-bootstrap, observed_worker_exit_s=observed,
+        return dict(**receipt, start_monotonic=start, bootstrap_s=start-bootstrap, observed_worker_exit_s=observed,
                     watchdog=watchdog, returncode=proc.returncode)
     finally:
         for fd in (ready, ready_w, go_r, go):
@@ -75,13 +86,23 @@ def launch(command, out, seconds):
             proc.wait()
 
 
-def inspect_events(path, task, seconds):
-    checkpoints = sorted({t for t in CHECKPOINTS if t <= seconds} | {seconds})
-    selected, rejected, metadata = [], [], {}
-    feasible_times = []
-    bound_history = []
-    finish = None
+def inspect_events(path, task, seconds, method=None):
+    """Replay the completed worker journal; timestamps select incumbents at inclusive cutoffs."""
+    deadlines = checkpoint_times(seconds)
+    snapshots, rejected, metadata = [], [], {}
+    best = first = finish = None
+    lower = upper = None
     candidates = 0
+
+    def save_until(t):
+        # Archive strictly before the next event so every event at a cutoff is included.
+        while len(snapshots) < len(deadlines) and deadlines[len(snapshots)] < t:
+            snap = dict(at_s=deadlines[len(snapshots)], best=best)
+            if method == "gurobi" or "bound_scope" in metadata:
+                snap.update(bound_scope=metadata.get("bound_scope"), lower_bound_m=lower,
+                            upper_bound_m=upper)
+            snapshots.append(snap)
+
     if path.is_file():
         with path.open() as f:
             for line in f:
@@ -91,34 +112,29 @@ def inspect_events(path, task, seconds):
                 kind, t, data = event["kind"], event["t"], event["data"]
                 if kind == "finish":
                     finish = dict(elapsed_s=t, **data)
-                elif kind == "info":
-                    if 0 <= t <= seconds:
-                        metadata.update(data)
-                bound = (data.get("meta", {}) if kind == "candidate" else data).get("lower_bound_m")
-                if 0 <= t <= seconds and bound is not None:
-                    bound_history.append((t, bound))
-                if kind == "candidate" and 0 <= t <= seconds:
+                if not 0 <= t <= seconds:
+                    continue
+                save_until(t)
+                if kind == "info":
+                    metadata.update(data)
+                bound_data = data.get("meta", {}) if kind == "candidate" else data
+                # A missing field leaves the last observation intact. Explicit null
+                # means the optimizer currently reports no finite value for that bound.
+                lower = bound_data.get("lower_bound_m", lower)
+                upper = bound_data.get("upper_bound_m", upper)
+                if kind == "candidate":
                     candidates += 1
                     try:
                         check = evaluate(task, data["routes"])
                     except InvalidRoute as error:
                         rejected.append(dict(elapsed_s=t, reason=str(error)))
                         continue
-                    feasible_times.append(t)
-                    if not selected or check["distance_m"] < selected[-1]["distance_m"]:
-                        selected.append(dict(elapsed_s=t, routes=data["routes"],
-                                             meta=data["meta"], **check))
-    snapshots = []
-    for deadline in checkpoints:
-        best = next((r for r in reversed(selected) if r["elapsed_s"] <= deadline), None)
-        snapshot = dict(at_s=deadline, best=best)
-        if "bound_scope" in metadata:
-            snapshot.update(bound_scope=metadata["bound_scope"],
-                            lower_bound_m=max((b for t, b in bound_history if t <= deadline), default=None),
-                            upper_bound_m=best["distance_m"] if best else None)
-        snapshots.append(snapshot)
-    return (selected[-1] if selected else None, min(feasible_times, default=None), snapshots,
-            metadata, rejected, candidates, finish)
+                    if first is None:
+                        first = t
+                    if best is None or check["distance_m"] < best["distance_m"]:
+                        best = dict(elapsed_s=t, routes=data["routes"], meta=bound_data, **check)
+    save_until(math.inf)
+    return best, first, snapshots, metadata, rejected, candidates, finish
 
 
 def execute(path, method, view, args, cpu):
@@ -133,7 +149,8 @@ def execute(path, method, view, args, cpu):
     dest = attempt_directory(args.out.resolve() / identifier / f"{ordinal:02d}-{method}-{view}")
     package, physical = cpu_topology()[cpu]
     result = dict(instance_id=identifier, input=str(path), sha256=digest, method=method, view=view,
-                  seconds=args.seconds, threads=1, seed=args.seed, cpu=cpu, socket=package,
+                  seconds=args.seconds, checkpoint_times_s=checkpoint_times(args.seconds),
+                  threads=1, seed=args.seed, cpu=cpu, socket=package,
                   physical_core=physical, interpreter=interpreter(method), input_prepare_s=time.monotonic()-before)
     command = [result["interpreter"], str(ROOT/"worker.py"), "--method", method, "--view", view,
                "--input", str(path), "--cpu", str(cpu), "--seed", str(args.seed), "--seconds",
@@ -144,8 +161,13 @@ def execute(path, method, view, args, cpu):
         result.update(status="setup_error", reason=str(e))
         write_json(dest/"result.json", result)
         return dest, result
+    if "status" in run:  # Preparation failed before the method clock started.
+        result.update(run)
+        write_json(dest/"result.json", result)
+        return dest, result
     replay_started = time.monotonic()
-    best, first, checkpoints, metadata, rejected, n, finish = inspect_events(dest/"events.jsonl", task, args.seconds)
+    best, first, checkpoints, metadata, rejected, n, finish = inspect_events(
+        dest/"events.jsonl", task, args.seconds, method=method)
     result.update(**run, first_feasible_s=first, candidates=n, invalid_candidates=len(rejected),
                   adapter=metadata, termination=finish)
     # A killed worker charged the full budget. Also report actual process exit latency.
@@ -179,8 +201,7 @@ def execute(path, method, view, args, cpu):
                                            if best is not None else None)
     if method == "gurobi" and "bound_scope" in metadata:
         metadata["lower_bound_m"] = checkpoints[-1]["lower_bound_m"]
-        if best:
-            metadata["upper_bound_m"] = best["distance_m"]
+        metadata["upper_bound_m"] = checkpoints[-1]["upper_bound_m"]
         if run["watchdog"] and not metadata.get("solver_status"):
             metadata["solver_status"] = "external_wall_time_limit"
     result["replay_s"] = time.monotonic() - replay_started

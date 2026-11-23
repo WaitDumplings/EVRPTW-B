@@ -1,5 +1,6 @@
 """Three single-threaded Gurobi arc-flow views, with upstream EV model and route decoder."""
 
+from contextlib import contextmanager
 import json
 import math
 import sys
@@ -270,63 +271,82 @@ def _bound_m(value):
     return float(value * 1000.0) if math.isfinite(value) and abs(value) < GRB.INFINITY else None
 
 
-def solve(method, task, ctx):
-    view = ctx.view
-    scope = "restricted_to_2_visits_per_physical_station_across_fleet" if view == "evrptw" else "full_model"
+@contextmanager
+def prepare(task, view, seed):
+    """Materialize all variables and constraints before the optimization budget starts."""
     solver = GurobiEVRPTWSolver(GurobiSolverConfig(time_limit_s=None, cs_copies=2, threads=1, output_flag=0))
-    ctx.info(solver_version=".".join(map(str, gp.gurobi.version())), source_commit=GROUP_COMMIT,
-             station_copies_per_physical_station=2 if view == "evrptw" else 0, bound_scope=scope)
     model, mapped, x = _ev_model(task, solver) if view == "evrptw" else _classical_model(task, view)
     with model:
         model.Params.OutputFlag = 0
         model.Params.Threads = 1
-        model.Params.Seed = ctx.seed
+        model.Params.Seed = seed
         model.Params.LazyConstraints = 1
         model.Params.MIPGap = 0
         model.Params.IntFeasTol = 1e-9
         model.Params.FeasibilityTol = 1e-8
-        warm_start = _warm_start(task, view, model, mapped, x, ctx)
-        ctx.info(mip_start_supplied=warm_start, model_status="optimizing")
-        last_bound_at = -math.inf
-        last_upper = math.inf
-        callback_errors = []
+        model.update()
+        yield model, solver, mapped, x
 
-        def callback(m, where):
-            nonlocal last_bound_at, last_upper
-            try:
-                if where == GRB.Callback.MIPSOL:
-                    values = m.cbGetSolution(x)
-                    if _separate(m, mapped, x, values):
-                        return
-                    upper = _bound_m(m.cbGet(GRB.Callback.MIPSOL_OBJ))
-                    if upper is not None and upper < last_upper:
-                        routes = solver._extract_routes_from_arc_values(mapped, values)
-                        lower = _bound_m(m.cbGet(GRB.Callback.MIPSOL_OBJBND))
-                        ctx.emit(routes, upper_bound_m=upper, lower_bound_m=lower, bound_scope=scope)
-                        last_upper = upper
-                elif where == GRB.Callback.MIP and ctx.elapsed() - last_bound_at >= 1.0:
-                    lower = _bound_m(m.cbGet(GRB.Callback.MIP_OBJBND))
-                    if lower is not None:
-                        ctx.info(lower_bound_m=lower, model_status="optimizing")
-                    last_bound_at = ctx.elapsed()
-                if ctx.remaining() <= 0.15:
-                    m.terminate()
-            except Exception as exc:
-                callback_errors.append(exc)
+
+def solve_prepared(task, ctx, prepared):
+    model, solver, mapped, x = prepared
+    view = ctx.view
+    scope = "restricted_to_2_visits_per_physical_station_across_fleet" if view == "evrptw" else "full_model"
+    ctx.info(solver_version=".".join(map(str, gp.gurobi.version())), source_commit=GROUP_COMMIT,
+             station_copies_per_physical_station=2 if view == "evrptw" else 0, bound_scope=scope)
+    warm_start = _warm_start(task, view, model, mapped, x, ctx)
+    ctx.info(mip_start_supplied=warm_start, model_status="optimizing")
+    best_route_objective = math.inf
+    previous_bounds = (None, None)
+    bound_codes = {
+        GRB.Callback.MIP: (GRB.Callback.MIP_OBJBND, GRB.Callback.MIP_OBJBST),
+        GRB.Callback.MIPNODE: (GRB.Callback.MIPNODE_OBJBND, GRB.Callback.MIPNODE_OBJBST),
+        GRB.Callback.MIPSOL: (GRB.Callback.MIPSOL_OBJBND, GRB.Callback.MIPSOL_OBJBST),
+    }
+    callback_errors = []
+
+    def callback(m, where):
+        nonlocal previous_bounds, best_route_objective
+        try:
+            if where in bound_codes:
+                lower_code, upper_code = bound_codes[where]
+                bounds = (_bound_m(m.cbGet(lower_code)), _bound_m(m.cbGet(upper_code)))
+                if bounds != previous_bounds:
+                    ctx.info(lower_bound_m=bounds[0], upper_bound_m=bounds[1])
+                    previous_bounds = bounds
+            if where == GRB.Callback.MIPSOL:
+                values = m.cbGetSolution(x)
+                if _separate(m, mapped, x, values):
+                    return
+                # MIPSOL_OBJ is the proposed solution's objective. Gurobi reports its
+                # accepted incumbent separately through the *_OBJBST callback codes.
+                objective = _bound_m(m.cbGet(GRB.Callback.MIPSOL_OBJ))
+                if objective is not None and objective < best_route_objective:
+                    routes = solver._extract_routes_from_arc_values(mapped, values)
+                    ctx.emit(routes, candidate_objective_m=objective, bound_scope=scope)
+                    best_route_objective = objective
+            if ctx.remaining() <= 0.15:
                 m.terminate()
+        except Exception as exc:
+            callback_errors.append(exc)
+            m.terminate()
 
-        # Leave a small margin for Gurobi's soft timeout and final metadata.
-        model.Params.TimeLimit = max(0.0, ctx.remaining() - 1.0)
-        model.optimize(callback)
-        if callback_errors:
-            raise RuntimeError("Gurobi incumbent callback failed") from callback_errors[0]
-        solved = model.SolCount > 0
-        upper = _bound_m(model.ObjVal) if solved else None
-        lower = _bound_m(model.ObjBound) if model.IsMIP and model.Status != GRB.LOADED else None
-        status = solver._status_name(model.Status)
-        if solved and upper < last_upper:
-            ctx.emit(solver._extract_routes(mapped, x), upper_bound_m=upper, lower_bound_m=lower,
-                     bound_scope=scope)
-        ctx.info(model_status=status, solver_status=status, upper_bound_m=upper, lower_bound_m=lower,
-                 mip_gap=float(model.MIPGap) if solved and math.isfinite(model.MIPGap) else None,
-                 bound_scope=scope, solution_count=int(model.SolCount))
+    # Leave a small margin for Gurobi's soft timeout and final metadata.
+    model.Params.TimeLimit = max(0.0, ctx.remaining() - 1.0)
+    model.optimize(callback)
+    if callback_errors:
+        raise RuntimeError("Gurobi incumbent callback failed") from callback_errors[0]
+    solved = model.SolCount > 0
+    upper = _bound_m(model.ObjVal) if solved else None
+    lower = _bound_m(model.ObjBound) if model.IsMIP and model.Status != GRB.LOADED else None
+    status = solver._status_name(model.Status)
+    if solved and upper is not None and upper < best_route_objective:
+        ctx.emit(solver._extract_routes(mapped, x), candidate_objective_m=upper, bound_scope=scope)
+    ctx.info(model_status=status, solver_status=status, upper_bound_m=upper, lower_bound_m=lower,
+             mip_gap=float(model.MIPGap) if solved and model.MIPGap < GRB.INFINITY else None,
+             bound_scope=scope, solution_count=int(model.SolCount))
+
+
+def solve(method, task, ctx):
+    with prepare(task, ctx.view, ctx.seed) as prepared:
+        solve_prepared(task, ctx, prepared)

@@ -11,6 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from bench import checkpoint_times
 from runtime import COMBINATIONS, DEFAULT_SEED, cpu_topology, file_hash, write_json
 
 POOLS = (("Cus100+500", (100, 500)), ("Cus1000", (1000,)))
@@ -59,6 +60,8 @@ def completed(out, row, method, cfg):
                     "view": view, "seed": cfg["seed"], "seconds": cfg["seconds"], "threads": 1}
         if any(r.get(k) != v for k, v in expected.items()):
             raise ValueError(f"existing result has a different input or configuration: {file}")
+        if r.get("checkpoint_times_s") != checkpoint_times(cfg["seconds"]):
+            continue  # Preserve older attempts and run the current timing protocol.
         status = r["status"]
         if status not in MEASURED | ERRORS:
             raise ValueError(f"unknown outcome in {file}: {status}")
@@ -69,8 +72,17 @@ def completed(out, row, method, cfg):
             needed += ["routes.json", "replay.json"]
             if view == "evrptw" and r.get("charging_visits") == 0:
                 needed += ["station_probe.json"]
-        if all((file.parent / name).is_file() for name in needed):
-            return status
+        if not all((file.parent / name).is_file() for name in needed):
+            continue
+        if status in MEASURED:
+            try:
+                checkpoints = json.loads((file.parent / "checkpoints.json").read_text())
+                recorded_times = [point["at_s"] for point in checkpoints]
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+            if recorded_times != r["checkpoint_times_s"]:
+                continue
+        return status
     return None
 
 

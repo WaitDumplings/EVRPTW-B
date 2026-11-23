@@ -15,7 +15,7 @@ from runtime import COMBINATIONS
 
 FIELDS = (
     "city", "size", "slot", "instance_id", "sha256", "method", "view", "seed",
-    "budget_s", "status", "reason", "wall_s", "first_feasible_s", "checkpoint_s",
+    "budget_s", "status", "reason", "wall_s", "model_build_s", "first_feasible_s", "checkpoint_s",
     "incumbent_s", "distance_m", "vehicles", "charging_visits", "lower_bound_m",
     "upper_bound_m", "bound_scope", "solver_status", "returncode", "watchdog",
     "termination_status", "termination_exception", "termination_reason", "attempt", "result_file",
@@ -54,8 +54,9 @@ def path_metadata(path):
 
 def read_result(folder, identifier, method, view, manifest, item):
     result = read_json(folder / "result.json")
-    expected = dict(instance_id=identifier, method=method, view=view,
-                    seconds=manifest.get("seconds", 1800), threads=1)
+    expected = dict(instance_id=identifier, method=method, view=view, threads=1)
+    if "seconds" in manifest:
+        expected["seconds"] = manifest["seconds"]
     if "seed" in manifest:
         expected["seed"] = manifest["seed"]
     if item is not None:
@@ -112,12 +113,17 @@ def select_attempt(root, folders, identifier, method, view, manifest, item):
             continue
         checkpoints_path = folder / "checkpoints.json"
         checkpoints = []
-        if result["status"] != "setup_error" or checkpoints_path.exists():
+        failed_before_start = (result["status"] in ("setup_error", "license_blocked")
+                               and "start_monotonic" not in result)
+        if checkpoints_path.exists() or not failed_before_start:
             try:
                 checkpoints = read_checkpoints(checkpoints_path, result["seconds"])
             except (OSError, ValueError, KeyError, TypeError) as err:
                 issues.append(dict(attempt=relative, issue=f"checkpoints.json: {err}"))
-            expected = {t for t in (60, 300, 900, 1800) if t <= result["seconds"]} | {result["seconds"]}
+            # Historical results predate the seven-point protocol. Only require
+            # the checkpoints that the recorded attempt was designed to produce.
+            expected = {t for t in result.get("checkpoint_times_s", (60, 300, 900, 1800))
+                        if t <= result["seconds"]} | {result["seconds"]}
             missing = expected - {row["at_s"] for row in checkpoints}
             if missing:
                 issues.append(dict(attempt=relative, missing_checkpoints_s=sorted(missing)))
@@ -181,9 +187,9 @@ def report(root, writer):
         common = dict(
             city=city, size=size, slot=(item or {}).get("slot"), instance_id=identifier,
             sha256=result.get("sha256", (item or {}).get("sha256")), method=method, view=view,
-            seed=result.get("seed", manifest.get("seed")), budget_s=manifest.get("seconds", 1800),
+            seed=result.get("seed", manifest.get("seed")), budget_s=result.get("seconds", manifest.get("seconds")),
             status=status, reason=result.get("reason"), wall_s=result.get("wall_s"),
-            first_feasible_s=result.get("first_feasible_s"), attempt=number,
+            model_build_s=result.get("model_build_s"), first_feasible_s=result.get("first_feasible_s"), attempt=number,
             solver_status=adapter.get("solver_status") or adapter.get("model_status"),
             returncode=result.get("returncode"), watchdog=result.get("watchdog"),
             termination_status=termination.get("status"), termination_exception=termination.get("exception"),
@@ -204,9 +210,7 @@ def report(root, writer):
                 incumbent = best.get("meta") or {}
                 for field in ("lower_bound_m", "upper_bound_m", "bound_scope"):
                     bounds[field] = next((source[field] for source in (checkpoint, last, incumbent)
-                                          if source.get(field) is not None), None)
-                if bounds["upper_bound_m"] is None:
-                    bounds["upper_bound_m"] = best.get("distance_m")
+                                          if field in source), None)
             writer.writerow(dict(common, **metrics, checkpoint_s=checkpoint["at_s"],
                                  incumbent_s=best.get("elapsed_s"), **bounds))
     if not stats:

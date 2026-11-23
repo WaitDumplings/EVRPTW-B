@@ -1,5 +1,6 @@
-"""Pinned worker. The parent starts the clock after common input is in memory."""
+"""Pinned worker. The parent releases the method once untimed preparation is complete."""
 import argparse
+from contextlib import ExitStack
 import importlib
 import json
 import math
@@ -82,15 +83,30 @@ def main():
         write_json(args.out / "station_probe.json", dict(expected=x, adapter=native(actual),
                    checks=comparisons, valid=all(comparisons.values())))
         return
-    with (args.out / "events.jsonl").open("w", buffering=1) as stream:
-        os.write(args.ready_fd, b"R")
-        os.close(args.ready_fd)
+    with ExitStack() as setup, (args.out / "events.jsonl").open("w", buffering=1) as stream:
+        with os.fdopen(args.ready_fd, "w") as ready:
+            receipt = {}
+            try:
+                adapter = importlib.import_module(MODULE[args.method])
+                if args.method == "gurobi":
+                    build_started = time.monotonic()
+                    try:
+                        prepared = setup.enter_context(adapter.prepare(task, args.view, args.seed))
+                    finally:
+                        receipt["model_build_s"] = time.monotonic() - build_started
+            except Exception as err:
+                receipt.update(reason=str(err), exception=type(err).__name__)
+                print(json.dumps(receipt), file=ready)
+                raise
+            print(json.dumps(receipt), file=ready)
         with os.fdopen(args.go_fd) as channel:
             started = float(channel.readline())
         ctx = Context(args, started, stream)
         try:
-            adapter = importlib.import_module(MODULE[args.method])
-            adapter.solve(args.method, task, ctx)
+            if args.method == "gurobi":
+                adapter.solve_prepared(task, ctx, prepared)
+            else:
+                adapter.solve(args.method, task, ctx)
             ctx._send("finish", {"status": "returned"})
         except Exception as err:
             traceback.print_exc()
