@@ -26,7 +26,7 @@ SOLVERS = {
     "hgs": ("classical", ("cvrp",)),
     "pyvrp-ils": ("classical", ("cvrp", "vrptw")),
     "pyvrp-hgs": ("classical", ("vrptw",)),
-    "vns-ts": ("electric", ("evrptw",)),
+    "vns-ts": ("electric", ("evrptw",)),  # electric launches the bundled C++ VNS/TS executable.
     "routingblocks": ("electric", ("evrptw",)),
     "hma": ("electric", ("evrptw",)),
     "gurobi": ("milp", ("cvrp", "vrptw", "evrptw")),

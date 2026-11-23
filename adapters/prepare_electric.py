@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import time
 
 if __package__:
@@ -23,7 +24,7 @@ BUILD_PACKAGES = (
     "pyproject-metadata==0.8.1", "pathspec==1.1.1", "packaging==26.3",
 )
 RUNTIME_PACKAGES = (
-    "tqdm==4.70.1", "pydantic==2.14.4", "click==8.5.1", "pydantic-core==2.50.5",
+    "pydantic==2.14.4", "click==8.5.1", "pydantic-core==2.50.5",
     "annotated-types==0.8.0", "typing-inspection==0.4.5", "typing-extensions==4.16.0",
 )
 
@@ -49,13 +50,34 @@ def file_hash(path):
         return hashlib.file_digest(f, "sha256").hexdigest()
 
 
+def build_vns(root, compiler_version):
+    source = ROOT / "adapters/vns_ts_cpp/vns_ts.cpp"
+    command = ["g++", "-std=c++17", "-O2", "-o", "vns_ts", str(source)]
+    with tempfile.TemporaryDirectory(dir=root) as temporary:
+        work = Path(temporary)
+        start = time.monotonic()
+        subprocess.run(command, cwd=work, check=True)
+        receipt = dict(compiler_version=compiler_version, command=command,
+                       compile_s=time.monotonic() - start,
+                       source_sha256=file_hash(source), binary_sha256=file_hash(work / "vns_ts"))
+        (work / "vns_ts-build.json").write_text(json.dumps(receipt, indent=2) + "\n")
+        (work / "vns_ts").replace(root / "vns_ts")
+        (work / "vns_ts-build.json").replace(root / "vns_ts-build.json")
+    return receipt
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--deps-dir", type=Path, default=EV_DEPS)
     p.add_argument("--build-jobs", type=int, default=6)
+    p.add_argument("--vns-only", action="store_true", help="build only the in-tree C++ VNS/TS executable")
     args = p.parse_args()
     root = args.deps_dir.resolve()
     root.mkdir(parents=True, exist_ok=True)
+    compiler_version = subprocess.check_output(["g++", "--version"], text=True).splitlines()[0]
+    if args.vns_only:
+        build_vns(root, compiler_version)
+        return
     bridge = root / "benchmark" / "Other_benchmark"
     build_env = root / "build-env"
     vpy = build_env / "bin" / "python"
@@ -64,7 +86,7 @@ def main():
     pybind = root / "pybind11"
     hma_src = bridge / "vendor" / "HMA" / "src"
     provenance = dict(python=sys.version, interpreter=sys.executable,
-                      compiler=subprocess.check_output(["g++", "--version"], text=True).splitlines()[0],
+                      compiler=compiler_version,
                       group_commit=GROUP_SHA, bridge_commit=BENCH_SHA, routingblocks_upstream=RB_SHA,
                       hma_upstream=HMA_SHA, pybind11_commit=PYBIND_SHA, build_jobs=args.build_jobs, phases_s={},
                       dependency_cache="network fetch; pip may reuse its local cache",
@@ -80,10 +102,10 @@ def main():
     def call(*args, env=None):
         subprocess.run(list(map(str, args)), cwd=root, env=env, check=True)
 
-    phase("obtain_group_vns", lambda: fetch(root / "group",
+    phase("compile_vns_ts", lambda: provenance.update(vns_ts=build_vns(root, compiler_version)))
+    phase("obtain_group_gurobi_sources", lambda: fetch(root / "group",
           "git@github.com:WaitDumplings/EVRPTW_DB_ICLR.git", GROUP_SHA,
-          ["EVRPTW_Core", "EVRPTW_Benchmark/MetaHeuristics", "EVRPTW_Benchmark/Exact",
-           "EVRPTW_Dataset_Generator/src", "src", "requirements"], override=os.environ.get("EVB_GROUP_REPO_URL")))
+          ["EVRPTW_Core", "EVRPTW_Benchmark/Exact/Gurobi_Solver"], override=os.environ.get("EVB_GROUP_REPO_URL")))
     phase("obtain_road_ports_and_vendored_sources", lambda: fetch(root / "benchmark",
           "https://github.com/WaitDumplings/Benchmark.git", BENCH_SHA, ["Other_benchmark"],
           override=os.environ.get("EVB_ROAD_REPO_URL")))
@@ -113,7 +135,7 @@ def main():
           "--target", site, "--no-deps", wheel))
     provenance["downloaded_wheels_sha256"] = {p.name: file_hash(p) for p in sorted(wheelhouse.glob("*.whl"))}
     provenance["artifacts_sha256"] = {str(path.relative_to(root)): file_hash(path)
-        for path in (wheel, bridge / "hma_adapter/bin/hma_reference", root / "hma_probe")}
+        for path in (wheel, bridge / "hma_adapter/bin/hma_reference", root / "hma_probe", root / "vns_ts")}
     report.write_text(json.dumps(provenance, indent=2) + "\n")
 
 

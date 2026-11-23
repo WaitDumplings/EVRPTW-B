@@ -5,7 +5,6 @@ import json
 import math
 import os
 from pathlib import Path
-import random
 import subprocess
 import sys
 import tempfile
@@ -15,12 +14,12 @@ import numpy as np
 
 from ..paths import EV_DEPS as EV
 
-GROUP = EV / "group"
+VNS = EV / "vns_ts"
+VNS_SEARCH_ARGS = ("--granular", "30", "--init-time-check", "0")
 BRIDGE = EV / "benchmark" / "Other_benchmark"
-GROUP_SHA = "09ffe9dba09f9c21c70be3590e721b0a605ffec4"
 BRIDGE_SHA = "bd94474c551b39ac90e98a25a2cc43cb919f81b8"
 UPSTREAM = {
-    "vns-ts": GROUP_SHA,
+    "vns-ts": "7e646c0062794a26184dfb55ac00840a49879ce8",
     "routingblocks": "2d2ee06c79b5d458b1aeeafd95a2b42b5441079a",
     "hma": "0ebbcaa4c2b8385c2c9bff06d60689cb2c64229d",
 }
@@ -66,32 +65,6 @@ def _inputs(task):
                tw_s=[[r["ready_s"], r["due_s"]] for r in customers],
                effective_charging_power_kw=[r["charge_kw"] for r in rows[n + 1:]])
     return cfg, matrices
-
-
-def _vns(cfg, matrices):
-    shared = GROUP / "EVRPTW_Benchmark" / "MetaHeuristics"
-    source = shared / "VNS_TS_Solver"
-    sys.path[:0] = list(map(str, [source, shared, GROUP / "EVRPTW_Core",
-                                  GROUP / "EVRPTW_Dataset_Generator" / "src"]))
-    import vnst_adapter as api
-    search = _load("evb_vns_search", source / "solver.py")
-    x = api.VNSTInstance()
-    x.instance_id = cfg["instance_id"]
-    x.dist_matrix, x.time_matrix, x.energy_matrix = (matrices[k] for k in ("D_km", "T_s", "E_kwh"))
-    x.terminal_order = list(range(len(x.dist_matrix)))
-    x.vehicle_params = dict(fuel_cap=cfg["battery_capacity_kwh"], load_cap=cfg["cargo_capacity_cm3"],
-                            charging_power_derating_factor=1.0)
-    start, end = cfg["working_start_s"], cfg["working_end_s"]
-    coords = cfg["coordinates"]
-    x.depot = api.Depot(0, "d", *coords[0], 0., start, end, 0.)
-    for i, (demand, tw, service) in enumerate(zip(cfg["demands_cm3"], cfg["tw_s"],
-                                                 cfg["service_time_s"]), start=1):
-        x.customers.append(api.Customer(i, "c", *coords[i], demand, *tw, service))
-    for i, power in enumerate(cfg["effective_charging_power_kw"], start=len(x.customers) + 1):
-        x.stations.append(api.Station(i, "f", *coords[i], 0., start, end, 0.))
-        x.station_charging_power_kw[i] = power
-    return search.VNSTSolver(x, show_progress=False, search_mode="fast",
-                             distance_unit_cost=1.0, vehicle_fixed_cost=0.0)
 
 
 def _routingblocks(cfg, matrices):
@@ -158,6 +131,58 @@ def _native_input(path, cfg, matrices):
         f.write("DEPOT_SECTION\n0\n")
 
 
+def _run_native(command, journal, log_path, ctx, env=None):
+    with journal.open("x+") as stream, log_path.open("w") as log:
+        process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=env)
+        try:
+            while True:
+                offset = stream.tell()
+                line = stream.readline()
+                if line.endswith("\n"):
+                    event = json.loads(line)
+                    meta = dict(native_distance_km=event["internal_objective"], stage=event["stage"],
+                                native_elapsed_s=event["elapsed_s"])
+                    if "iteration" in event:
+                        meta["iteration"] = event["iteration"]
+                    ctx.emit(event["routes"], **meta)
+                    continue
+                stream.seek(offset)
+                if process.poll() is not None:
+                    # Events are flushed by the native process before it exits.
+                    tail = stream.readline()
+                    if not tail:
+                        break
+                    if not tail.endswith("\n"):
+                        raise RuntimeError(f"Incomplete candidate event in {journal}")
+                    stream.seek(offset)
+                time.sleep(0.005)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+            process.wait()
+    if process.returncode:
+        raise RuntimeError(f"{command[0]} returned {process.returncode}, see {log_path}")
+
+
+def _run_vns_ts(cfg, matrices, ctx):
+    path = ctx.out / "vns-ts-input.txt"
+    journal = ctx.out / "vns-ts-events.jsonl"
+    log = ctx.out / "vns-ts.log"
+    _native_input(path, cfg, matrices)
+    remaining = ctx.remaining()
+    if remaining <= 0:
+        ctx.info(termination="deadline_before_launch", runs=0, vns_iterations=0, ts_iterations=0, evaluations=0)
+        return
+    deadline = time.monotonic() + remaining
+    command = [str(VNS), str(path), *VNS_SEARCH_ARGS, "--events", str(journal), "--seed", str(ctx.seed),
+               "--deadline-monotonic", str(deadline)]
+    _run_native(command, journal, log, ctx)
+    summary = json.loads(log.read_text())
+    ctx.info(termination="time_limit", runs=summary["runs"], vns_iterations=summary["vns_iterations"],
+             ts_iterations=summary["ts_iterations"], evaluations=summary["evaluations"],
+             native_best_distance_km=summary["best_distance_km"], native_wall_s=summary["wall_s"])
+
+
 def _run_hma(cfg, matrices, ctx):
     origin = _load("evb_road_hma", BRIDGE / "hma_adapter" / "run.py")
     path = ctx.out / "hma-input.txt"
@@ -168,50 +193,20 @@ def _run_hma(cfg, matrices, ctx):
     stop = ctx.out / "hma-stop.json"
     env = dict(os.environ, HMA_START_MONOTONIC=str(ctx.started), HMA_BUDGET_S=str(budget),
                HMA_EVENTS_PATH=str(journal), HMA_STOP_PATH=str(stop), HMA_ACK_PATH="")
-    with journal.open("x+") as stream, (ctx.out / "hma.log").open("w") as log:
-        process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=env)
-        try:
-            while True:
-                offset = stream.tell()
-                line = stream.readline()
-                if line.endswith("\n"):
-                    event = json.loads(line)
-                    ctx.emit(event["routes"], native_distance_km=event["internal_objective"],
-                             stage=event["stage"], native_elapsed_s=event["elapsed_s"])
-                    continue
-                stream.seek(offset)
-                if process.poll() is not None:
-                    # Events are flushed by the native process before it exits.
-                    tail = stream.readline()
-                    if not tail:
-                        break
-                    if not tail.endswith("\n"):
-                        raise RuntimeError("HMA stopped while writing a candidate event")
-                    stream.seek(offset)
-                time.sleep(0.005)
-        finally:
-            if process.poll() is None:
-                process.terminate()
-            process.wait()
-    if process.returncode:
-        raise RuntimeError(f"HMA returned {process.returncode}, see {ctx.out / 'hma.log'}")
+    _run_native(command, journal, ctx.out / "hma.log", ctx, env)
     if stop.exists():
         ctx.info(native_termination=json.loads(stop.read_text()))
 
 
 def solve(method, task, ctx):
-    ctx.info(version=UPSTREAM[method], road_adapter_commit=BRIDGE_SHA if method != "vns-ts" else GROUP_SHA,
+    provenance = ({"source_file": "adapters/vns_ts_cpp/vns_ts.cpp"}
+                  if method == "vns-ts" else {"road_adapter_commit": BRIDGE_SHA})
+    ctx.info(version=UPSTREAM[method], **provenance,
              objective="directed shortest-path km, zero vehicle fixed cost", matrix_precision="float64",
              resource_units="seconds, cm3, usable kWh above reserve, effective station kW")
     cfg, matrices = _inputs(task)
     if method == "vns-ts":
-        random.seed(ctx.seed)
-        np.random.seed(ctx.seed % 2**32)
-        solver = _vns(cfg, matrices)
-        def report(elapsed, value, routes):
-            ctx.emit([r for r in routes if len(r) > 2], native_distance_km=value, search_elapsed_s=elapsed)
-        solver.solve(time_limit_s=ctx.remaining(), incumbent_callback=report)
-        ctx.info(initial_construction=solver.singleton_source, timed_out=solver.terminated_by_time_limit)
+        _run_vns_ts(cfg, matrices, ctx)
     elif method == "routingblocks":
         _run_routingblocks(cfg, matrices, ctx)
     elif method == "hma":
@@ -236,12 +231,13 @@ def charge_probe(method, task, from_idx, station_idx, arrival_kwh):
     if not math.isclose(full - energy, arrival_kwh, abs_tol=1e-7):
         raise ValueError("The probe arrival must correspond to the full departure on the supplied arc")
     if method == "vns-ts":
-        solver = _vns(cfg, matrices)
-        station = solver.instance.stations[station_idx - n - 1]
-        energy = solver.fuel_consumption(solver.instance.depot, station)
-        charge_s = solver.charging_time(station, full - arrival_kwh)
-        departure = solver.instance.vehicle_params["fuel_cap"] + reserve
-        source = "VNSTSolver.fuel_consumption / charging_time / full-reset fuel_cap"
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "probe.txt"
+            _native_input(path, cfg, matrices)
+            output = subprocess.check_output([str(VNS), str(path), *VNS_SEARCH_ARGS, "--probe", str(station_idx)], text=True)
+        energy, charge_s, usable = map(float, output.split())
+        departure = usable + reserve
+        source = "C++ VNS/TS --probe: directed arc energy, full charge time and station departure battery"
     elif method == "routingblocks":
         _, (_, cpp, evaluation) = _routingblocks(cfg, matrices)
         replay = evaluation.replay(cpp, [0, station_idx, 0])

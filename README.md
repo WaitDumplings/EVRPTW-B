@@ -1,6 +1,6 @@
 # EVRPTW-B
 
-EVRPTW-B 在同一份 EVRPTW-D Parquet 上运行 CVRP、VRPTW 和 EVRPTW 求解器，并使用原始有向路网矩阵独立验证车辆路线。求解器登记表包含 9 种非学习型配置。已发布的 Chicago 样例覆盖早先验收的 12 个“求解器 × 视图”组合。[Chicago Cus100 验收样例](examples/chicago-cus100/README.md) · [完整精度 CSV](examples/chicago-cus100/summary.csv)
+EVRPTW-B 在同一份 EVRPTW-D Parquet 上运行 CVRP、VRPTW 和 EVRPTW 求解器，并使用原始有向路网矩阵独立验证车辆路线。求解器登记表包含 9 种非学习型配置。Chicago 样例包含 C++ VNS/TS 在内的 12 个组合的 60 秒验收记录。[Chicago Cus100 验收样例](examples/chicago-cus100/README.md) · [完整精度 CSV](examples/chicago-cus100/summary.csv)
 
 | 视图 | 非学习型方法 |
 |---|---|
@@ -41,7 +41,13 @@ git -C .deps/reader checkout --detach e2cf4825dd6a7c4ecd2cf88bef6cb206908ae50e
 "$PY" adapters/prepare_classical.py
 ```
 
-三项电动启发式和 Gurobi 使用组内固定版本的源码，需 Git 账号能访问相应仓库。
+只准备 VNS/TS 时，直接编译仓库随附的单线程 C++17 源码。
+
+```bash
+"$PY" adapters/prepare_electric.py --vns-only
+```
+
+准备全部电动启发式和 Gurobi 时，需要能访问相应源码仓库的 Git 账号。
 
 ```bash
 "$PY" adapters/prepare_electric.py
@@ -49,9 +55,9 @@ git -C .deps/reader checkout --detach e2cf4825dd6a7c4ecd2cf88bef6cb206908ae50e
 
 如需在多个检出之间复用已构建的环境和原生库，运行准备脚本和求解器前设置同一个 `EVB_DEPS=/absolute/path/to/deps`。
 
-经典方法使用独立的 OR-Tools、PyVRP-ILS 和 PyVRP-HGS 环境。电动方法使用 VNS/TS 的固定组内提交 `09ffe9dba09f9c21c70be3590e721b0a605ffec4` 和道路版 RoutingBlocks、HMA 提交 `bd94474c551b39ac90e98a25a2cc43cb919f81b8`。[经典方法的版本和数值换算](adapters/CLASSICAL.zh-CN.md)
+经典方法使用独立的 OR-Tools、PyVRP-ILS 和 PyVRP-HGS 环境。VNS/TS 使用本仓库的 C++ 实现。RoutingBlocks 和 HMA 使用道路版提交 `bd94474c551b39ac90e98a25a2cc43cb919f81b8`。[经典方法的版本和数值换算](adapters/CLASSICAL.zh-CN.md)
 
-VNS/TS 和 Gurobi 的组内源码默认通过 SSH 获取，RoutingBlocks、HMA 的道路版默认通过 HTTPS 获取。使用 HTTPS 或其他 Git 镜像时，可分别设置 `EVB_GROUP_REPO_URL`（VNS/TS 和 Gurobi 源码）与 `EVB_ROAD_REPO_URL`（RoutingBlocks 和 HMA 道路版）。准备脚本会检出规定的提交。
+Gurobi 的组内模型及共享资源代码默认通过 SSH 获取。RoutingBlocks 和 HMA 的道路版默认通过 HTTPS 获取。可分别设置 `EVB_GROUP_REPO_URL` 与 `EVB_ROAD_REPO_URL` 指定镜像，准备脚本会检出固定提交。
 
 Gurobi 验收使用 `gurobipy==13.0.2` 和本机 `maojie` 环境的有效许可。在另一台机器上，可用 `EVB_PYTHON_GUROBI` 指向已安装 Gurobi、NumPy、PyArrow 且具有相应规模许可的解释器。其余方法的解释器选择见 [runtime.py](runtime.py)。
 
@@ -68,12 +74,12 @@ ID=626c1a86d16d7c06ab213f62
 SHA=7b9061e7ff08e1de2567c24a6b41d10a28ea6adb2c582418b09fd3ceb4aa4b91
 DATA_ROOT="${DATA_ROOT:-../city-v2-output}"
 INPUT="${INPUT:-$DATA_ROOT/instances/chicago/train/Cus100/$ID.parquet}"
-args=(--input "$INPUT" --expect-id "$ID" --expect-sha256 "$SHA" --seconds 60 --threads 1 --seed 20261103 --out acceptance)
+args=(--input "$INPUT" --expect-id "$ID" --expect-sha256 "$SHA" --threads 1 --seed 20261103 --out acceptance)
 ```
 
 ## 单例复跑
 
-以下 12 条按任务书顺序逐条执行。重复运行会创建新的 `attempt-NNN`，历史尝试保留。每条命令退出前已完成该项回放。
+以下 12 条按任务书顺序逐条执行。各组合均使用 `bench.py run` 的默认预算 60 秒。重复运行会创建新的 `attempt-NNN`，历史尝试保留。每条命令退出前已完成该项回放。
 
 ```bash
 "$PY" bench.py run --solver ortools       --view cvrp   "${args[@]}"

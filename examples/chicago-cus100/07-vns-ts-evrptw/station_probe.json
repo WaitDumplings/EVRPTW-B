@@ -11,9 +11,9 @@
   },
   "adapter": {
     "energy_kwh": 4.530462162894708,
-    "charge_s": 181.2184865157883,
+    "charge_s": 181.21848651578833,
     "departure_kwh": 100.0,
-    "source": "VNSTSolver.fuel_consumption / charging_time / full-reset fuel_cap"
+    "source": "C++ VNS/TS --probe: directed arc energy, full charge time and station departure battery"
   },
   "checks": {
     "energy_kwh": true,

@@ -55,12 +55,12 @@ PY
 | 2 | HGS-CVRP | CVRP | 调用已有显式有向距离矩阵接口；坐标用于接口要求的空间信息，弧成本来自实例。[作者仓库](https://github.com/vidalt/HGS-CVRP) |
 | 3 | PyVRP-ILS | CVRP、VRPTW | 用 v0.14.0，为每个方向提供相应距离和需要的行驶时间。[PyVRP v0.14.0](https://github.com/PyVRP/PyVRP/releases/tag/v0.14.0) |
 | 4 | PyVRP-HGS | VRPTW | 用单独环境载入 v0.9.0，复用相同的原始 VRPTW 输入。[PyVRP v0.9.0 搜索入口](https://github.com/PyVRP/PyVRP/blob/v0.9.0/pyvrp/solve.py) |
-| 5 | VNS/TS | EVRPTW | 用本组已有的 Python 版本，保留既有邻域和搜索策略。[固定提交的运行入口](https://github.com/WaitDumplings/EVRPTW_DB_ICLR/blob/09ffe9dba09f9c21c70be3590e721b0a605ffec4/EVRPTW_Benchmark/MetaHeuristics/VNS_TS_Solver/run_vns_ts.py) |
+| 5 | VNS/TS | EVRPTW | 运行仓库随附的单线程 C++17 实现，按单调墙钟截止，从事件文件收取改进路线。[C++ 源码](adapters/vns_ts_cpp/vns_ts.cpp) · [方法与复现说明](adapters/vns_ts_cpp/README.zh-CN.md) |
 | 6 | RoutingBlocks EVRPTW-ALNS | EVRPTW | 用完整的 `examples/evrptw` 或本组基于它的既有适配版。上游示例采用部分充电，优先复用已有满充、逐站功率的资源计算。[框架与完整示例](https://github.com/tumBAIS/RoutingBlocks/tree/main/examples/evrptw) |
 | 7 | HMA | EVRPTW | 使用作者 C++ 搜索及充电站插入程序，优先复用本组已有的道路版接入。核对实际启用的距离目标、满充与逐站功率；原文题型包含部分充电及同时取送。[0SliverBullet/EVRP-TW-SPD-HMA](https://github.com/0SliverBullet/EVRP-TW-SPD-HMA) |
 | 8 | Gurobi MILP | CVRP、VRPTW、EVRPTW | 从本组既有模型接起。按对应视图建模，CVRP 使用容量和路径约束，VRPTW 加时间，EVRPTW 再加能量和站点。沿用本机或服务器已有的有效许可，记录求解状态、可行解及可用的界。[本组精确模型入口](https://github.com/WaitDumplings/EVRPTW_DB_ICLR/blob/09ffe9dba09f9c21c70be3590e721b0a605ffec4/EVRPTW_Benchmark/Exact/Gurobi_Solver/run_gurobi.py) |
 
-本组 VNS/TS 和 Gurobi 均可从 `https://github.com/WaitDumplings/EVRPTW_DB_ICLR.git` 的 `09ffe9dba09f9c21c70be3590e721b0a605ffec4` 取得。HMA 与 RoutingBlocks 表中给出上游入口；若机器上有本组旧 benchmark 的资源评估代码，同时记录它的来源和本次改动。适配限于输入、目标和资源规则的接线、时限、日志、路线输出；沿用现有搜索和充电决策方法。若必须重新设计搜索或充电算法才能支持题设，留下具体缺口与源码位置，继续其余项。
+本组 Gurobi 模型及共享资源代码可从 `https://github.com/WaitDumplings/EVRPTW_DB_ICLR.git` 的 `09ffe9dba09f9c21c70be3590e721b0a605ffec4` 取得。HMA 与 RoutingBlocks 表中给出上游入口；若机器上有本组旧 benchmark 的资源评估代码，同时记录它的来源和本次改动。适配限于输入、目标和资源规则的接线、时限、日志、路线输出；沿用现有搜索和充电决策方法。若必须重新设计搜索或充电算法才能支持题设，留下具体缺口与源码位置，继续其余项。
 
 旧 Gurobi EV 模型限制每座物理站的拷贝数。它输出的路线可按原实例验证并给出可行上界；若使用了这项限制，记录拷贝数并将模型下界或最优声明明确标为受限模型结果。60 秒接入验收要求可行解，最优性证明另行报告。
 

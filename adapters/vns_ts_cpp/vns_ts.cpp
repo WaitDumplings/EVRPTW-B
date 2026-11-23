@@ -7,11 +7,13 @@
 //        vns_ts INPUT --probe STATION      prints: energy_kwh charge_seconds usable_kwh_on_departure
 //                                          for the arc depot -> STATION, using the search evaluator's rules
 #include <algorithm>
+#include <cerrno>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <random>
@@ -24,6 +26,15 @@ using namespace std;
 
 static double now_s() {
     return chrono::duration<double>(chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+static FILE* open_events(const string& path) {
+    FILE* f = fopen(path.c_str(), "a");
+    if (!f) {
+        fprintf(stderr, "cannot open --events '%s': %s\n", path.c_str(), strerror(errno));
+        exit(2);
+    }
+    return f;
 }
 
 struct Inst {
@@ -417,9 +428,15 @@ struct Solver {
     void count_added(const vector<int>& s, int r) {
         for (int v : s) if (I.cust(v) ? rt[v] != r : true) freq[fkey(v, r)]++;
     }
+    void clear_if_no_customer(vector<int>& route) const {
+        if (none_of(route.begin(), route.end(), [this](int v) { return I.cust(v); }))
+            route.clear();
+    }
     void apply(const Move& mv) {
         build(mv); bool two = two_routes(mv);
         vector<int> n1 = b1, n2 = b2;
+        clear_if_no_customer(n1);
+        if (two) clear_if_no_customer(n2);
         count_added(n1, mv.r1); if (two) count_added(n2, mv.r2);
         set_tabu_for_removed(R[mv.r1], n1, mv.r1);
         if (two) set_tabu_for_removed(R[mv.r2], n2, mv.r2);
@@ -443,8 +460,7 @@ struct Solver {
 
     void report(const char* stage) {
         if (events.empty()) return;
-        FILE* f = fopen(events.c_str(), "a");
-        if (!f) return;
+        FILE* f = open_events(events);
         fprintf(f, "{\"routes\":[");
         bool first = true;
         for (auto& r : best_routes) if (!r.empty()) {
@@ -456,9 +472,12 @@ struct Solver {
                 best_feas, stage, now_s() - started, iter);
         fflush(f); fclose(f);
     }
-    void note_incumbent(const char* stage) {
+    void note_incumbent() {
         Cost c = total();
-        if (feasible(c) && c.dist < best_feas - 1e-9) { best_feas = c.dist; best_routes = R; report(stage); }
+        if (feasible(c) && c.dist < best_feas - 1e-9) {
+            const char* stage = best_routes.empty() ? "feasibility" : "distance";
+            best_feas = c.dist; best_routes = R; report(stage);
+        }
     }
 
     // ---- shaking: cyclic exchange (Table 2) ------------------------------------------------------
@@ -482,7 +501,10 @@ struct Solver {
             int b = (a + 1) % k; auto& r = R[ids[b]];
             r.insert(r.begin() + min(start[b], (int)r.size()), chain[a].begin(), chain[a].end());
         }
-        for (int a = 0; a < k; a++) { set_tabu_for_removed(before[a], R[ids[a]], ids[a]); }
+        for (int a = 0; a < k; a++) {
+            clear_if_no_customer(R[ids[a]]);
+            set_tabu_for_removed(before[a], R[ids[a]], ids[a]);
+        }
         recost(); reindex(); RC.resize(R.size());
         for (size_t r = 0; r < R.size(); r++) RC[r] = eval(R[r]);
     }
@@ -499,7 +521,7 @@ struct Solver {
         sc_batt = sumE > 0 ? sumD / sumE : 1;            // kWh -> km at the average consumption
         al = be = ga = P.pen0; cap_streak = tw_streak = batt_streak = 0;
         tabu.clear(); freq.clear(); moves_done = 0;
-        note_incumbent("initial");
+        note_incumbent();
         vector<vector<int>> S = R; double fS = gen_cost(total());
         double T0 = -P.delta_sa * max(fS, 1e-9) / log(0.5), temp = T0;
         const int kmax = 15; int kappa = 1; bool feas_phase = true; long i = 0;
@@ -515,7 +537,7 @@ struct Solver {
                 if (!ts_step(gen_cost(cur), cur)) break;
                 Cost now = total();
                 update_penalties(now);
-                note_incumbent(feas_phase ? "feasibility" : "distance");
+                note_incumbent();
                 bool f = feasible(now); double g = gen_cost(now);
                 if ((f && (!bestF || now.dist < bestD - 1e-12)) || (!f && !bestF && g < bestG)) {
                     bestS = R; bestG = g; bestF = f; bestD = now.dist;
@@ -553,7 +575,10 @@ int main(int argc, char** argv) {
     string input = argv[1], events; uint64_t seed = 1; double budget = 60, deadline = -1; Params P; int probe = -1;
     for (int a = 2; a + 1 < argc; a += 2) {
         string k = argv[a], v = argv[a + 1];
-        if (k == "--events") events = v;
+        if (k == "--events") {
+            events = v;
+            fclose(open_events(events));
+        }
         else if (k == "--seed") seed = stoull(v);
         else if (k == "--budget") budget = stod(v);
         else if (k == "--deadline-monotonic") deadline = stod(v);

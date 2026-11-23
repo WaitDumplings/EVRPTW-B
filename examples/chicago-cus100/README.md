@@ -1,6 +1,6 @@
-# Chicago Cus100 单例验收
+# Chicago Cus100 单例运行记录
 
-在 Chicago 训练集的同一个 Cus100 实例上，12 个求解器与视图组合均在 60 秒内返回了通过独立回放的路线。每项使用 1 个物理核、1 个求解线程和搜索 seed `20261103`。
+所有记录使用 Chicago 训练集的同一个 Cus100 实例。12 个组合的单次预算均为 60 秒。表中最好路线均已独立回放。每项使用 1 个物理核、1 个求解线程和搜索 seed `20261103`。
 
 实例 ID 为 `626c1a86d16d7c06ab213f62`，Parquet 的 SHA-256 为 `7b9061e7ff08e1de2567c24a6b41d10a28ea6adb2c582418b09fd3ceb4aa4b91`。路线使用原始 `node_idx`，距离按原始有向最短路矩阵以米计。
 
@@ -16,12 +16,14 @@
 | PyVRP-ILS | CVRP | 0.052 | 59.301 | 42,224.139 | 1 | — | [路线](04-pyvrp-ils-cvrp/routes.json) · [回放](04-pyvrp-ils-cvrp/replay.json) |
 | PyVRP-ILS | VRPTW | 0.053 | 59.301 | 42,224.139 | 1 | — | [路线](05-pyvrp-ils-vrptw/routes.json) · [回放](05-pyvrp-ils-vrptw/replay.json) |
 | PyVRP-HGS | VRPTW | 0.049 | 59.301 | 42,797.887 | 1 | — | [路线](06-pyvrp-hgs-vrptw/routes.json) · [回放](06-pyvrp-hgs-vrptw/replay.json) |
-| VNS/TS | EVRPTW | 0.495 | 59.314 | 43,918.703 | 1 | 0 | [路线](07-vns-ts-evrptw/routes.json) · [回放](07-vns-ts-evrptw/replay.json) · [充电探针](07-vns-ts-evrptw/station_probe.json) |
+| VNS/TS（C++） | EVRPTW | 0.043 | 59.307 | 42,888.685 | 1 | 0 | [路线](07-vns-ts-evrptw/routes.json) · [回放](07-vns-ts-evrptw/replay.json) · [充电探针](07-vns-ts-evrptw/station_probe.json) |
 | RoutingBlocks ALNS | EVRPTW | 0.171 | 59.300 | 122,405.202 | 4 | 0 | [路线](08-routingblocks-evrptw/routes.json) · [回放](08-routingblocks-evrptw/replay.json) · [充电探针](08-routingblocks-evrptw/station_probe.json) |
 | HMA | EVRPTW | 0.194 | 48.507 | 42,538.635 | 1 | 0 | [路线](09-hma-evrptw/routes.json) · [回放](09-hma-evrptw/replay.json) · [充电探针](09-hma-evrptw/station_probe.json) |
 | Gurobi MILP | CVRP | 0.309 | 58.310 | 42,382.151 | 1 | — | [路线](10-gurobi-cvrp/routes.json) · [回放](10-gurobi-cvrp/replay.json) |
 | Gurobi MILP | VRPTW | 0.498 | 58.317 | 43,114.660 | 1 | — | [路线](11-gurobi-vrptw/routes.json) · [回放](11-gurobi-vrptw/replay.json) |
 | Gurobi MILP | EVRPTW | 1.088 | 58.335 | 43,420.220 | 1 | 0 | [路线](12-gurobi-evrptw/routes.json) · [回放](12-gurobi-evrptw/replay.json) · [充电探针](12-gurobi-evrptw/station_probe.json) |
+
+C++ VNS/TS 返回的 11 条候选均通过独立回放。求解参数为 `--granular 30 --init-time-check 0`。最好路线在第 20.716 秒取得。此次构建的源码 SHA-256 为 `980fa2ddc46a9e21b05766fd32e6b4de71bc43f678d951eeb570e248cae8976c`。
 
 四组 EVRPTW 路线均为零访站。各组探针另外选取本例中的真实有向弧和充电站，核对弧耗电、按站点有效功率充满所需的时间，以及离站电量。
 
