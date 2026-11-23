@@ -9,27 +9,68 @@ from itertools import groupby
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
+from threading import Lock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from initial_record import INITIAL_PAIRS, matches_initial
 from runtime import COMBINATIONS, DEFAULT_SEED, READER, cpu_topology, file_hash, one_thread_env, write_json
-from scripts.run_test1 import ERRORS, completed_attempt as find_attempt
+from scripts.audit_results import assessment_issues
+from scripts.formal_processes import PanelCancelled, panel_processes
+from scripts.run_test1 import ERRORS, completed_attempts
 
 SPLITS = ("test1", "xs", "test2")
 SIZES = (100, 500, 1000)
 SECONDS = 1800
+MAX_TECHNICAL_ATTEMPTS = 2
 
 
 def planned_pairs(row, gurobi):
     return [(m, v) for m, v in COMBINATIONS if m != "gurobi" or (gurobi and row["n"] == 100)]
 
 
+def task_history(out, row, method, view, cfg):
+    protocol = {"view": view, "seconds": cfg["seconds"], "seed": cfg["seed"]}
+    failures = []
+    for attempt in completed_attempts(out, row, method, protocol, assess=assessment_issues):
+        if attempt[1] not in ERRORS:
+            return attempt, failures
+        failures.append(attempt)
+    return (failures[0] if failures else None), failures
+
+
 def completed_attempt(out, row, method, view, cfg):
-    return find_attempt(out, row, method, {"view": view, "seconds": cfg["seconds"], "seed": cfg["seed"]})
+    return task_history(out, row, method, view, cfg)[0]
+
+
+class Progress:
+    """Persist exhausted tasks across scheduler restarts under the output lock."""
+    def __init__(self, out):
+        self.path = out / "progress.json"
+        self.lock = Lock()
+        records = json.loads(self.path.read_text())["final_failures"] if self.path.exists() else []
+        self.failures = {(r["instance_id"], r["method"], r["view"]): r for r in records}
+        if not self.path.exists():
+            write_json(self.path, {"final_failures": []})
+
+    def record_final_failure(self, row, method, view, failures):
+        attempts = []
+        for folder, status in reversed(failures):
+            result = json.loads((folder / "result.json").read_text())
+            issues = assessment_issues(result) if result["status"] != status else []
+            attempts.append(dict(path=str(folder.relative_to(self.path.parent)), status=status,
+                                 reason="; ".join(issues) or result.get("reason"),
+                                 returncode=result.get("returncode")))
+        ident = row["instance_id"]
+        record = dict(instance_id=ident, city=row["city"], split=row["split"], n=row["n"],
+                      method=method, view=view, attempts=attempts)
+        key = (ident, method, view)
+        with self.lock:
+            if self.failures.get(key) != record:
+                self.failures[key] = record
+                write_json(self.path, {"final_failures": [self.failures[k] for k in sorted(self.failures)]})
 
 
 def phase(row):
@@ -113,7 +154,7 @@ def show_plan(cfg, list_tasks, output):
                       sep="\t", file=output)
 
 
-def reader_environment(explicit, root, first):
+def reader_environment(explicit, root, first, processes):
     """Check the actual public file in the controller environment before dispatch."""
     env = one_thread_env()
     chosen = explicit or env.get("EVRPTWD_READER")
@@ -122,7 +163,7 @@ def reader_environment(explicit, root, first):
     errors = []
     for path in dict.fromkeys(p.resolve() for p in candidates):
         env["EVRPTWD_READER"] = str(path)
-        probe = subprocess.run([sys.executable, "-c",
+        probe = processes.run([sys.executable, "-c",
                                 "from runtime import load_view; import sys; load_view(sys.argv[1], 'cvrp')",
                                 str(root / first["path"])], cwd=ROOT, env=env, text=True, capture_output=True)
         if probe.returncode == 0:
@@ -136,23 +177,27 @@ def run_instance(row, cpu, args, cfg, env, lock_fds):
     initial = []
 
     def invoke(command):
-        return subprocess.run(["taskset", "-c", str(cpu), sys.executable, *command],
-                              cwd=ROOT, env=env, pass_fds=lock_fds).returncode
+        return args.processes.run(["taskset", "-c", str(cpu), sys.executable, *command],
+                                  cwd=ROOT, env=env, pass_fds=lock_fds).returncode
 
     for method, view in planned_pairs(row, cfg["gurobi"]):
-        attempt = completed_attempt(args.out, row, method, view, cfg)
-        if attempt is None or (args.retry_errors and attempt[1] in ERRORS):
+        attempt, failures = task_history(args.out, row, method, view, cfg)
+        if attempt is None or (args.retry_errors and attempt[1] in ERRORS
+                               and len(failures) < MAX_TECHNICAL_ATTEMPTS):
             code = invoke([str(ROOT / "bench.py"), "run", "--input", str(args.data_root / row["path"]),
                            "--solver", method, "--view", view, "--cpu", str(cpu), "--threads", "1",
                            "--seconds", str(cfg["seconds"]), "--seed", str(cfg["seed"]), "--out", str(args.out),
                            "--expect-sha256", row["sha256"], "--expect-id", row["instance_id"]])
-            current = completed_attempt(args.out, row, method, view, cfg)
+            current, failures = task_history(args.out, row, method, view, cfg)
             if code not in (0, 1) or current is None or current == attempt:
                 raise RuntimeError(f"{row['instance_id']} {method}/{view}: exit {code}, missing new terminal result")
             attempt = current
         folder, status = attempt
         outcomes[status] += 1
-        if (method, view) in INITIAL_PAIRS:
+        if status in ERRORS:
+            if len(failures) >= MAX_TECHNICAL_ATTEMPTS:
+                args.progress.record_final_failure(row, method, view, failures)
+        elif (method, view) in INITIAL_PAIRS:
             initial.append(folder)
 
     # This slot retains its exclusive physical core throughout the post-task processes.
@@ -212,6 +257,7 @@ def schedule(args, cfg, env, cores, lock_fd):
             free = deque(cores)
             pending = {}
             for row in rows:
+                args.processes.check_cancelled()
                 if not free:
                     done, _ = wait(pending, return_when=FIRST_COMPLETED)
                     for job in done:
@@ -237,7 +283,8 @@ def main(argv=None):
     p.add_argument("--gurobi", action="store_true", help="include all three Gurobi views on Cus100")
     p.add_argument("--seed", type=int, default=DEFAULT_SEED)
     p.add_argument("--reader", type=Path, help="public-v2 EVRPTW-D reader checkout")
-    p.add_argument("--retry-errors", action="store_true", help="retry technical errors once; retain all earlier attempts")
+    p.add_argument("--retry-errors", action="store_true",
+                   help="retry a technical error on restart; two failed terminal attempts per task in total")
     p.add_argument("--plan-only", action="store_true", help="print all intended tasks and core-hours without executing")
     args = p.parse_args(argv)
     physical = {}
@@ -255,12 +302,16 @@ def main(argv=None):
         if args.plan_only:
             return 0
         args.out = args.out.resolve()
-        with output_lock(args.out, cfg) as lock_fd:
-            env = reader_environment(args.reader, args.data_root, cfg["inputs"][0])
+        with panel_processes() as args.processes, output_lock(args.out, cfg) as lock_fd:
+            args.progress = Progress(args.out)
+            env = reader_environment(args.reader, args.data_root, cfg["inputs"][0], args.processes)
             locks = Path(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()) / f"evrptwb-cores-{os.getuid()}"
             with physical_leases(physical, jobs, locks) as cores:
                 print(f"Physical core slots (logical CPU representatives): {list(cores)}", flush=True)
                 totals = schedule(args, cfg, env, cores, lock_fd)
+    except PanelCancelled as exc:
+        print(f"Panel cancelled by {exc}.", file=sys.stderr)
+        return 128 + exc.signum
     except (OSError, KeyError, ValueError, RuntimeError) as exc:
         p.exit(1, f"{p.prog}: {exc}\n")
     print(f"Final outcomes: {dict(totals)}")

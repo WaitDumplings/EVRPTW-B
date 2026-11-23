@@ -115,7 +115,7 @@ def select_attempt(root, folders, identifier, method, view, manifest, item):
         checkpoints = []
         failed_before_start = (result["status"] in ("setup_error", "license_blocked")
                                and "start_monotonic" not in result)
-        if checkpoints_path.exists() or not failed_before_start:
+        if checkpoints_path.exists() or (not failed_before_start and result["status"] != "execution_error"):
             try:
                 checkpoints = read_checkpoints(checkpoints_path, result["seconds"])
             except (OSError, ValueError, KeyError, TypeError) as err:

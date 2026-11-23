@@ -48,7 +48,8 @@ def read_inputs(root, cities):
     return sorted(records, key=lambda r: (r["slot"], r["n"], r["city"]))
 
 
-def completed_attempt(out, row, method, cfg):
+def completed_attempts(out, row, method, cfg, *, assess=None):
+    """Yield terminal attempts newest first. Unpublished or incomplete attempts do not count."""
     view = cfg["view"]
     i = COMBINATIONS.index((method, view)) + 1
     folder = out / row["instance_id"] / f"{i:02d}-{method}-{view}"
@@ -82,8 +83,13 @@ def completed_attempt(out, row, method, cfg):
                 continue
             if recorded_times != r["checkpoint_times_s"]:
                 continue
-        return file.parent, status
-    return None
+            if assess is not None and assess(r):
+                status = "execution_error"
+        yield file.parent, status
+
+
+def completed_attempt(out, row, method, cfg):
+    return next(completed_attempts(out, row, method, cfg), None)
 
 
 def completed(out, row, method, cfg):

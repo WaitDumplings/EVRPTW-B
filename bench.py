@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from replay import InvalidRoute, evaluate
+from scripts.audit_results import premature_exit_reason
 from runtime import (COMBINATIONS, DEFAULT_SEED, ROOT, cpu_topology, file_hash, interpreter,
                      load_view, one_thread_env, write_json)
 
@@ -57,23 +58,27 @@ def launch(command, out, seconds):
             os.close(go_r); go_r = -1
             with os.fdopen(ready, closefd=False) as channel:
                 message = channel.readline()
-            if not message:
-                raise RuntimeError("worker exited during preparation (see solver.log)")
-            receipt = json.loads(message)
-            if "exception" in receipt:
-                reason = receipt["reason"].lower()
-                status = "license_blocked" if "license" in reason or "licence" in reason else "setup_error"
-                return dict(**receipt, status=status, returncode=proc.wait(),
-                            bootstrap_s=time.monotonic() - bootstrap)
+            receipt = json.loads(message) if message else {}
+            if not message or "exception" in receipt:
+                code = proc.wait()
+                reason = receipt.get("reason", f"worker exit {code} during preparation; see solver.log")
+                return dict(receipt, reason=reason, status="execution_error" if code else "setup_error",
+                            returncode=code, watchdog=False, bootstrap_s=time.monotonic() - bootstrap)
             start = time.monotonic()
-            os.write(go, f"{start!r}\n".encode())
+            try:
+                os.write(go, f"{start!r}\n".encode())
+            except BrokenPipeError:
+                code = proc.wait()
+                return dict(receipt, status="execution_error", returncode=code, watchdog=False,
+                            reason=f"worker exit {code} before search; see solver.log",
+                            bootstrap_s=start-bootstrap)
             os.close(go); go = -1
             try:
                 proc.wait(timeout=max(0., start + seconds - time.monotonic()))
             except subprocess.TimeoutExpired:
-                watchdog = True
-                kill_group(proc.pid)
-                proc.wait()
+                if proc.poll() is None:
+                    kill_group(proc.pid)
+                    watchdog = proc.wait() == -signal.SIGKILL
             observed = time.monotonic() - start
         return dict(**receipt, start_monotonic=start, bootstrap_s=start-bootstrap, observed_worker_exit_s=observed,
                     watchdog=watchdog, returncode=proc.returncode)
@@ -165,6 +170,13 @@ def execute(path, method, view, args, cpu):
         result.update(run)
         write_json(dest/"result.json", result)
         return dest, result
+    # Preserve the raw journal on failure. A candidate cannot certify a timed
+    # measurement when the worker was interrupted outside the budget watchdog.
+    if run["returncode"] != 0 and not run["watchdog"]:
+        result.update(run, status="execution_error", wall_s=run["observed_worker_exit_s"],
+                      reason=f"worker exit {run['returncode']}; see solver.log")
+        write_json(dest/"result.json", result)
+        return dest, result
     replay_started = time.monotonic()
     best, first, checkpoints, metadata, rejected, n, finish = inspect_events(
         dest/"events.jsonl", task, args.seconds, method=method)
@@ -173,6 +185,11 @@ def execute(path, method, view, args, cpu):
     # A killed worker charged the full budget. Also report actual process exit latency.
     result["wall_s"] = args.seconds if run["watchdog"] else (
         finish["elapsed_s"] if finish else run["observed_worker_exit_s"])
+    early = premature_exit_reason(result)
+    if early:
+        result.update(status="execution_error", reason=early)
+        write_json(dest/"result.json", result)
+        return dest, result
     write_json(dest/"checkpoints.json", checkpoints)
     if rejected:
         write_json(dest/"rejected.json", rejected)
