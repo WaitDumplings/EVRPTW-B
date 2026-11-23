@@ -27,8 +27,12 @@ SECONDS = 1800
 MAX_TECHNICAL_ATTEMPTS = 2
 
 
-def planned_pairs(row, gurobi):
-    return [(m, v) for m, v in COMBINATIONS if m != "gurobi" or (gurobi and row["n"] == 100)]
+def planned_pairs(row, gurobi, methods=None, instance_ids=None):
+    # Gurobi Cus500 is opt-in per instance; broader default panels stay Cus100-only.
+    gurobi = gurobi or (methods is not None and "gurobi" in methods)
+    allowed_size = row["n"] == 100 or (row["n"] == 500 and row["instance_id"] in (instance_ids or ()))
+    return [(m, v) for m, v in COMBINATIONS
+            if (methods is None or m in methods) and (m != "gurobi" or (gurobi and allowed_size))]
 
 
 def task_history(out, row, method, view, cfg):
@@ -90,7 +94,7 @@ def parse_ranges(items):
     return ranges
 
 
-def select_inputs(root, cities, splits, ranges):
+def select_inputs(root, cities, splits, ranges, instance_ids=None):
     import pyarrow.parquet as pq
 
     fields = ["city", "split", "n", "instance_id", "path", "bytes", "sha256"]
@@ -114,6 +118,13 @@ def select_inputs(root, cities, splits, ranges):
                 raise ValueError(f"test2 Cus{size} has {len(block)} selected instances, requested {first}..{last}")
             block = block[first - 1:last]
         result.extend(block)
+    if instance_ids is not None:
+        if not instance_ids or len(set(instance_ids)) != len(instance_ids):
+            raise ValueError("--instance-ids must contain distinct instance IDs")
+        missing = set(instance_ids) - {r["instance_id"] for r in result}
+        if missing:
+            raise ValueError(f"instance IDs outside the selected panel: {sorted(missing)}")
+        result = [r for r in result if r["instance_id"] in instance_ids]
     if not result or len({r["instance_id"] for r in result}) != len(result):
         raise ValueError("empty selection or duplicate instance IDs")
     for row in result:
@@ -134,22 +145,38 @@ def make_manifest(args):
     release = root / "release.json"
     if release.exists() and json.loads(release.read_text())["index_sha256"] != index_hash:
         raise ValueError("index.parquet does not match release.json")
-    rows = select_inputs(root, args.cities, args.splits, parse_ranges(args.test2_range))
-    return dict(format_version=1, index_sha256=index_hash, seconds=SECONDS, threads=1,
-                seed=args.seed, gurobi=args.gurobi, inputs=rows)
+    rows = select_inputs(root, args.cities, args.splits, parse_ranges(args.test2_range), args.instance_ids)
+    cfg = dict(format_version=1, index_sha256=index_hash, seconds=SECONDS, threads=1,
+               seed=args.seed, gurobi=args.gurobi, inputs=rows)
+    # Preserve legacy manifest contents when no new filters are supplied.
+    if args.methods is not None:
+        cfg["methods"] = list(dict.fromkeys(m for m, _ in COMBINATIONS if m in args.methods))
+        cfg["gurobi"] = args.gurobi or "gurobi" in cfg["methods"]
+    if args.instance_ids is not None:
+        cfg["instance_ids"] = sorted(args.instance_ids)
+    if args.methods is not None or args.instance_ids is not None:
+        cfg["inputs"] = [r for r in rows if planned_pairs(r, cfg["gurobi"],
+                                                        cfg.get("methods"), cfg.get("instance_ids"))]
+        if not cfg["inputs"]:
+            raise ValueError("no tasks for the selected methods and instances")
+        if args.instance_ids is not None:
+            empty = set(args.instance_ids) - {r["instance_id"] for r in cfg["inputs"]}
+            if empty:
+                raise ValueError(f"no tasks for explicitly selected instance IDs: {sorted(empty)}")
+    return cfg
 
 
 def show_plan(cfg, list_tasks, output):
     rows = cfg["inputs"]
     counts = Counter((r["split"], r["n"]) for r in rows)
-    total = sum(len(planned_pairs(row, cfg["gurobi"])) for row in rows)
+    total = sum(len(planned_pairs(row, cfg["gurobi"], cfg.get("methods"), cfg.get("instance_ids"))) for row in rows)
     print(f"# instances={len(rows)} tasks={total} core_hours={total * cfg['seconds'] / 3600:g}", file=output)
     for (split, size), n in counts.items():
         print(f"# {split} Cus{size} instances={n}", file=output)
     if list_tasks:
         print("city\tsplit\tn\tinstance_id\tmethod\tview", file=output)
         for r in rows:
-            for method, view in planned_pairs(r, cfg["gurobi"]):
+            for method, view in planned_pairs(r, cfg["gurobi"], cfg.get("methods"), cfg.get("instance_ids")):
                 print(r["city"], r["split"], r["n"], r["instance_id"], method, view,
                       sep="\t", file=output)
 
@@ -180,7 +207,7 @@ def run_instance(row, cpu, args, cfg, env, lock_fds):
         return args.processes.run(["taskset", "-c", str(cpu), sys.executable, *command],
                                   cwd=ROOT, env=env, pass_fds=lock_fds).returncode
 
-    for method, view in planned_pairs(row, cfg["gurobi"]):
+    for method, view in planned_pairs(row, cfg["gurobi"], cfg.get("methods"), cfg.get("instance_ids")):
         attempt, failures = task_history(args.out, row, method, view, cfg)
         if attempt is None or (args.retry_errors and attempt[1] in ERRORS
                                and len(failures) < MAX_TECHNICAL_ATTEMPTS):
@@ -281,6 +308,10 @@ def main(argv=None):
                    help="FIRST LAST for every test2 size, or SIZE FIRST LAST for a specific size; inclusive, one-based")
     p.add_argument("--max-jobs", type=int, help="single-core slots; default: half the available physical cores")
     p.add_argument("--gurobi", action="store_true", help="include all three Gurobi views on Cus100")
+    p.add_argument("--methods", nargs="+", choices=list(dict.fromkeys(m for m, _ in COMBINATIONS)),
+                   help="run only these methods (all their registered views); gurobi implies --gurobi")
+    p.add_argument("--instance-ids", nargs="+",
+                   help="restrict to explicit IDs within the selected panel; enables Gurobi on listed Cus500 instances")
     p.add_argument("--seed", type=int, default=DEFAULT_SEED)
     p.add_argument("--reader", type=Path, help="public-v2 EVRPTW-D reader checkout")
     p.add_argument("--retry-errors", action="store_true",

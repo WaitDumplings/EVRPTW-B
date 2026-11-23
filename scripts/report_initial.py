@@ -40,7 +40,7 @@ def summarize(items):
 def rows(out, cfg):
     groups = {}
     for item in cfg["inputs"]:
-        for method, view in planned_pairs(item, cfg["gurobi"]):
+        for method, view in planned_pairs(item, cfg["gurobi"], cfg.get("methods"), cfg.get("instance_ids")):
             if (method, view) not in INITIAL_PAIRS:
                 continue
             key = (method, view, item["split"], item["n"])

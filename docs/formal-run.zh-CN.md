@@ -30,6 +30,36 @@
   --test2-range 100 11 12 --test2-range 1000 21 22 --plan-only
 ```
 
+## 仅运行指定方法与显式实例
+
+`--methods` 接受一个或多个注册方法名，只运行所选方法的全部注册视图，任务顺序仍由方法注册表决定。省略该参数和 `--instance-ids` 时，任务选择、顺序和 manifest 与 r2 相同。`--methods gurobi` 自动启用 Gurobi，仅保留有任务的实例；不用另加 `--gurobi`。以下计划覆盖 test1、test2 的全部 Cus100，共 1,000 个实例、3,000 个任务、1,500 个搜索核时：
+
+```bash
+"$PY" scripts/run_formal.py --data-root "$DATA_ROOT" --splits test1 test2 \
+  --methods gurobi --plan-only > gurobi-cus100-plan.tsv
+```
+
+Gurobi 默认仍只覆盖 Cus100。只有通过 `--instance-ids ID...` 显式列出的 Cus500 实例才能启用 Gurobi；该参数与城市、划分及 test2 序号范围取交集。重复、未知、范围外或所选方法没有任务的显式 ID 都会报错，不会静默扩大范围或遗漏实例。Cus1000 和 xs Cus2000 的 Gurobi 任务仍不支持。
+
+从 index.parquet 中取 test1 Cus500 按实例 ID 字典序排序的前两项，再只列出它们的 6 个 Gurobi 任务：
+
+```bash
+mapfile -t PROBE_IDS < <("$PY" - "$DATA_ROOT" <<'PYIDS'
+import sys
+from pathlib import Path
+import pyarrow.parquet as pq
+rows = pq.read_table(Path(sys.argv[1]) / "index.parquet",
+                     columns=["split", "n", "instance_id"]).to_pylist()
+print("\n".join(sorted(r["instance_id"] for r in rows
+                       if r["split"] == "test1" and r["n"] == 500)[:2]))
+PYIDS
+)
+"$PY" scripts/run_formal.py --data-root "$DATA_ROOT" --splits test1 \
+  --methods gurobi --instance-ids "${PROBE_IDS[@]}" --plan-only
+```
+
+正式运行或续跑使用相同筛选条件，将 `--plan-only` 替换为 `--reader "$READER_V2" --out "$OUT" --max-jobs "$JOBS" --seed 20261103 --retry-errors`。Cus500 试探必须使用独立输出目录。新筛选条件写入 manifest，改变方法或显式实例集合后不能复用原输出目录；仅调整筛选参数的排列顺序不改变计划。只选 Gurobi 时不调度其他方法，也不启动启发式初始解收集进程；Gurobi 本身原有的建模、MIP start、计时与回放保持不变。
+
 ## 运行与续跑
 
 实际执行时提供 `--out`。使用 `--reader` 或 `EVRPTWD_READER` 指定能读取公开 v2 格式的 EVRPTW-D 仓库。未指定时程序探测当前默认读取器及同级 `EVRPTW-D-HF-two-part` 检出目录，并用一份所选文件试读。非学习求解器的安装、环境和原生程序构建见[仓库说明](../README.md)。
