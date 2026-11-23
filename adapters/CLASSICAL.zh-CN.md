@@ -44,10 +44,10 @@ HGS 通过作者的 `solve_cvrp_dist_mtx` 接收按行存放的有向 double 矩
 
 ## LKH-3
 
-| 方法和视图 | 来源与实现 | 可执行文件 |
-|---|---|---|
-| `lkh/cvrp` | Keld Helsgaun 的 LKH-3.0.10 原版，题型 `ACVRP` | `.deps/lkh-3.0.10/bin/LKH` |
-| `lkh/vrptw` | **B 级**。在同一发行版上增加独立的有向行驶时间输入，题型 `CVRPTW` | `.deps/lkh-3.0.10/bin/LKH-vrptw-time` |
+| 方法和视图 | 来源与实现 | 可执行文件 | 传给 LKH 的车辆上限 `k` |
+|---|---|---|---|
+| `lkh/cvrp` | Keld Helsgaun 的 LKH-3.0.10 原版，题型 `ACVRP` | `.deps/lkh-3.0.10/bin/LKH` | 容量装箱车数 `b` 加 2 |
+| `lkh/vrptw` | **B 级**。在同一发行版上增加独立的有向行驶时间输入，题型 `CVRPTW` | `.deps/lkh-3.0.10/bin/LKH-vrptw-time` | 可行构造车数 `g` 加上 `max(2, ceil(g/4))` |
 
 作者保留代码权利，LKH-3 仅供学术及非商业使用。准备脚本校验原始发行包的 SHA-256 `c7432409e359f4b712983be8670b351b20875de1be93d7b1a074c45e1744f910`，分别编译原版和补丁版，并记录构建用时和校验值。补丁 SHA-256 为 `0472cec9a8036f9b17e3d93a43025150c99732839e88397b09ed2eae3ff902a4`。构建需要 C 编译器、GNU make 和 patch；运行需要 Linux、GNU time (`/usr/bin/time`) 及 GNU coreutils 的 `timeout`。[作者发布页存档](https://web.archive.org/web/20240630232626id_/http://webhotel4.ruc.dk/~keld/research/LKH-3/) · [作者发行包](http://akira.ruc.dk/~keld/research/LKH-3/LKH-3.0.10.tgz) · [时间矩阵补丁](patches/lkh-3.0.10-vrptw-time.patch)
 
@@ -57,7 +57,13 @@ HGS 通过作者的 `solve_cvrp_dist_mtx` 接收按行存放的有向 double 矩
 "$PY" bench.py run --solver lkh --view vrptw --input "$INPUT" --threads 1 --seconds 60 --seed 20261103 --out repeat/lkh
 ```
 
-两个视图都按有向距离计价，输入距离单位为分米。车辆上限取按容量装箱得到的车数加 2，允许空路线。这个上限保证所用装箱方案在容量上可容纳；时间窗可能要求更多车辆。试验级和运行级的路线文件在搜索过程中交给公共事件流，最终距离、用车数和可行性使用原始矩阵独立回放。输入转换、启动子进程和提取路线计入墙钟预算。
+两个视图均以有向距离为目标，输入距离取最近的整数分米。载量每立方厘米使用 1 个整数刻度，逐客户向上取整需求，向下取整车辆容量。取整后的容量和单点需求须能用 LKH 的 32 位有符号整数表示。试验级和运行级的候选在搜索中写入公共事件流，最终距离、用车数和可行性按原始浮点数据独立回放。
+
+CVRP 按整数需求从大到小依次放入第一辆放得下的车，得到装箱车数 `b`。VRPTW 构造满足容量、客户时间窗、服务时间和仓库班次的路线，得到车数 `g`。VRPTW 按客户最晚时刻、最早时刻和节点编号依次处理客户。每次选择有向距离增量最小的可行插入位置，增量相同则依路线创建顺序和位置决定。已有路线均无法插入时才开新路线。构造在给 LKH 的整数时间和载量上检查插入，并在原始浮点数据上回放完整方案。构造只确定 `VEHICLES`，LKH 仍自行生成初始解。两个视图均允许空路线。车辆数构造、输入生成、子进程启动和路线提取均计入方法墙钟预算。
+
+`result.json` 的 `adapter.vehicle_bound_basis` 和 `adapter.vehicle_bound_basis_vehicles` 记录构造类型及车数，`adapter.vehicle_bound_construction_s` 为构造用时，`adapter.vehicle_upper_bound` 为交给 LKH 的上限。顶层 `vehicles` 记录独立回放选出的最好可行解的用车数，`vehicle_bound_reached` 表示该解是否用满车辆上限。预算内未得到可行解时，触顶状态为 `null`。
+
+正式评测关闭系统调用跟踪和采样剖析。`native_user_cpu_s`、`native_system_cpu_s` 与 `native_peak_rss_kib` 均由 GNU time 在子进程退出时汇总，统计范围包括 LKH 和它的 `timeout` 包装进程。这三个字段位于 `result.json` 的 `adapter` 对象中。原生 LKH 日志中的 `Time` 使用进程用户 CPU 时间。
 
 `TRAVEL_TIME_SECTION` 按含仓库的原始维度逐行列出有向整数时间。适配器默认使用毫秒，对行驶、服务和窗开始向上取整，对窗结束向下取整，仓库班次采用相同规则。时间刻度和成本精度分别记录。时间窗预处理按实际行驶时间识别必迟弧，并沿用上游对被剪弧的处理。其搜索成本记为 `M`，有效时间记为 `max(M, 原行驶时间)`。`M` 是剪弧哨兵；路线的物理行驶时间由公共回放读取。搜索继续以罚值、总距离的顺序比较路线。
 

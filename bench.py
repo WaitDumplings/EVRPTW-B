@@ -174,6 +174,9 @@ def execute(path, method, view, args, cpu):
         result.update(status="no_feasible_within_budget", reason="no complete feasible route received within budget")
     else:
         result.update(status="execution_error", reason=f"worker exit {run['returncode']}; see solver.log")
+    if method == "lkh":
+        result["vehicle_bound_reached"] = (best["vehicles"] == metadata["vehicle_upper_bound"]
+                                           if best is not None else None)
     if method == "gurobi" and "bound_scope" in metadata:
         metadata["lower_bound_m"] = checkpoints[-1]["lower_bound_m"]
         if best:
